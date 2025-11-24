@@ -1,4 +1,4 @@
-import subprocess
+import asyncio
 import tempfile
 import time
 from dataclasses import dataclass
@@ -35,90 +35,109 @@ class TypeChecker:
         self.program = program
         # Create a temporary file that persists for the lifetime of this object
         self.temp_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
+            mode="w",
+            suffix=".py",
         )
         self.temp_file.write(program)
         self.temp_file.flush()
         self.file = self.temp_file.name
 
     def __del__(self):
-        """Clean up temporary file when object is destroyed."""
-        try:
-            self.temp_file.close()
-            Path(self.file).unlink(missing_ok=True)
-        except Exception:
-            pass
+        """Close temporary file when object is destroyed."""
+        self.temp_file.close()
 
-    def run_mypy(self) -> TypeCheckResult:
+    async def run_mypy(self) -> TypeCheckResult:
         """
         Run mypy type checker on the temporary file.
 
         Returns:
             TypeCheckResult with the output and exit code
         """
-        result = subprocess.run(["mypy", self.file], capture_output=True, text=True)
+        process = await asyncio.create_subprocess_exec(
+            "mypy",
+            self.file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
         return TypeCheckResult(
             checker="mypy",
-            stdout=result.stdout,
-            stderr=result.stderr,
-            returncode=result.returncode,
+            stdout=stdout.decode(),
+            stderr=stderr.decode(),
+            returncode=process.returncode or 0,
         )
 
-    def run_pyright(self) -> TypeCheckResult:
+    async def run_pyright(self) -> TypeCheckResult:
         """
         Run pyright type checker on the temporary file.
 
         Returns:
             TypeCheckResult with the output and exit code
         """
-        result = subprocess.run(["pyright", self.file], capture_output=True, text=True)
+        process = await asyncio.create_subprocess_exec(
+            "pyright",
+            self.file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await process.communicate()
         return TypeCheckResult(
             checker="pyright",
-            stdout=result.stdout,
-            stderr=result.stderr,
-            returncode=result.returncode,
+            stdout=stdout.decode(),
+            stderr=stderr.decode(),
+            returncode=process.returncode or 0,
         )
 
-    def run_ty(self) -> TypeCheckResult:
+    async def run_ty(self) -> TypeCheckResult:
         """
         Run ty type checker (from Astral) on the temporary file.
 
         Returns:
             TypeCheckResult with the output and exit code
         """
-        result = subprocess.run(
-            ["ty", "check", self.file], capture_output=True, text=True
+        process = await asyncio.create_subprocess_exec(
+            "ty",
+            "check",
+            self.file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        stdout, stderr = await process.communicate()
         return TypeCheckResult(
             checker="ty",
-            stdout=result.stdout,
-            stderr=result.stderr,
-            returncode=result.returncode,
+            stdout=stdout.decode(),
+            stderr=stderr.decode(),
+            returncode=process.returncode or 0,
         )
 
-    def run_pyrefly(self) -> TypeCheckResult:
+    async def run_pyrefly(self) -> TypeCheckResult:
         """
         Run pyrefly type checker on the temporary file.
 
         Returns:
             TypeCheckResult with the output and exit code
         """
-        result = subprocess.run(
-            ["pyrefly", "check", self.file], capture_output=True, text=True
+        process = await asyncio.create_subprocess_exec(
+            "pyrefly",
+            "check",
+            self.file,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        stdout, stderr = await process.communicate()
         return TypeCheckResult(
             checker="pyrefly",
-            stdout=result.stdout,
-            stderr=result.stderr,
-            returncode=result.returncode,
+            stdout=stdout.decode(),
+            stderr=stderr.decode(),
+            returncode=process.returncode or 0,
         )
 
-    def run_all(
+    async def run_all(
         self,
         checkers: list[Literal["mypy", "ty", "pyright", "pyrefly"]] | None = None,
     ) -> dict[str, TypeCheckResult]:
         """
-        Run specified type checkers on the temporary file.
+        Run specified type checkers on the temporary file concurrently.
 
         Args:
             checkers: List of type checker names to run. If None, runs all checkers.
@@ -140,6 +159,11 @@ class TypeChecker:
         }
 
         start = time.time()
+
+        # Create tasks for all checkers to run concurrently
+        tasks = []
+        task_names = []
+
         for name in checkers:
             if name not in checker_map:
                 results[name] = TypeCheckResult(
@@ -148,18 +172,37 @@ class TypeChecker:
                     stderr=f"Unknown checker: {name}",
                     returncode=-1,
                 )
-                continue
+            else:
+                tasks.append(checker_map[name]())
+                task_names.append(name)
 
+        # Run all tasks concurrently
+        if tasks:
             try:
-                results[name] = checker_map[name]()
-            except FileNotFoundError:
-                # Checker not installed
-                results[name] = TypeCheckResult(
-                    checker=name,
-                    stdout="",
-                    stderr=f"{name} is not installed or not in PATH",
-                    returncode=-1,
-                )
+                completed_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for name, result in zip(task_names, completed_results):
+                    if isinstance(result, Exception):
+                        # Handle exceptions (e.g., FileNotFoundError for missing checkers)
+                        results[name] = TypeCheckResult(
+                            checker=name,
+                            stdout="",
+                            stderr=f"{name} is not installed or not in PATH: {result}",
+                            returncode=-1,
+                        )
+                    else:
+                        results[name] = result
+            except Exception as e:
+                # Catch any unexpected errors
+                for name in task_names:
+                    if name not in results:
+                        results[name] = TypeCheckResult(
+                            checker=name,
+                            stdout="",
+                            stderr=f"Error running {name}: {e}",
+                            returncode=-1,
+                        )
+
         print(f"Type checking completed in {time.time() - start:.2f} seconds")
 
         return results
