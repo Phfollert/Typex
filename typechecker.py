@@ -2,7 +2,6 @@ import asyncio
 import tempfile
 import time
 from dataclasses import dataclass
-from typing import Literal
 from enum import StrEnum
 
 
@@ -14,7 +13,7 @@ class Typechecker(StrEnum):
 
 
 @dataclass
-class TypecheckerkResult:
+class TypecheckerResult:
     """Result from running a type checker."""
 
     checker: str
@@ -33,11 +32,10 @@ class ConcurrentTypechecking:
 
     def __init__(self, program: str):
         """
-        Initialize TypeChecker with a Python program string.
-        Creates a temporary file with the program content.
+        Initialize ConcurrentTypechecking with a temporary file containing the program.
 
         Args:
-            program: String representation of a Python program
+            program: Snippet of a Python program
         """
         self.program = program
         # Create a temporary file that persists for the lifetime of this object
@@ -53,86 +51,93 @@ class ConcurrentTypechecking:
         """Close temporary file when object is destroyed."""
         self.temp_file.close()
 
-    async def _run_mypy(self) -> TypecheckerkResult:
+    async def _run_mypy(self) -> TypecheckerResult:
         """
         Run mypy type checker on the temporary file.
 
         Returns:
-            TypeCheckResult with the output and exit code
+            TypecheckerResult with the output and exit code
         """
         process = await asyncio.create_subprocess_exec(
             "mypy",
+            "--output",
+            "json",
             self.file,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
-        return TypecheckerkResult(
+        return TypecheckerResult(
             checker="mypy",
             stdout=stdout.decode(),
             stderr=stderr.decode(),
             returncode=process.returncode,
         )
 
-    async def _run_pyright(self) -> TypecheckerkResult:
+    async def _run_pyright(self) -> TypecheckerResult:
         """
         Run pyright type checker on the temporary file.
 
         Returns:
-            TypeCheckResult with the output and exit code
+            TypecheckerResult with the output and exit code
         """
         process = await asyncio.create_subprocess_exec(
             "pyright",
+            "--outputjson",
             self.file,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
-        return TypecheckerkResult(
+        return TypecheckerResult(
             checker="pyright",
             stdout=stdout.decode(),
             stderr=stderr.decode(),
             returncode=process.returncode,
         )
 
-    async def _run_ty(self) -> TypecheckerkResult:
+    async def _run_ty(self) -> TypecheckerResult:
         """
         Run ty type checker (from Astral) on the temporary file.
 
         Returns:
-            TypeCheckResult with the output and exit code
+            TypecheckerResult with the output and exit code
         """
         process = await asyncio.create_subprocess_exec(
             "ty",
             "check",
+            "--output-format",
+            "gitlab",
             self.file,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
-        return TypecheckerkResult(
+        return TypecheckerResult(
             checker="ty",
             stdout=stdout.decode(),
             stderr=stderr.decode(),
             returncode=process.returncode,
         )
 
-    async def _run_pyrefly(self) -> TypecheckerkResult:
+    async def _run_pyrefly(self) -> TypecheckerResult:
         """
         Run pyrefly type checker on the temporary file.
 
         Returns:
-            TypeCheckResult with the output and exit code
+            TypecheckerResult with the output and exit code
         """
         process = await asyncio.create_subprocess_exec(
             "pyrefly",
             "check",
+            "--output-format",
+            "json",
             self.file,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
-        return TypecheckerkResult(
+        return TypecheckerResult(
             checker="pyrefly",
             stdout=stdout.decode(),
             stderr=stderr.decode(),
@@ -140,21 +145,23 @@ class ConcurrentTypechecking:
         )
 
     async def run(
-        self, checkers: set[Typechecker] | Literal["all"] = "all"
-    ) -> dict[Typechecker, TypecheckerkResult | BaseException]:
+        self, checkers: set[Typechecker] = set()
+    ) -> tuple[float, dict[Typechecker, TypecheckerResult | BaseException]]:
         """
         Run specified type checkers on the temporary file concurrently.
 
         Args:
-            checkers: List of type checker names to run. If None, runs all checkers.
+            checkers: Set of type checker names to run. If empty, runs all checkers.
 
         Returns:
-            Dictionary mapping checker name to TypeCheckResult
+            Tuple containing:
+                - float: Total execution time in seconds
+                - dict[Typechecker, TypecheckerkResult | BaseException]: Dictionary mapping checker name to TypeCheckResult or exception
         """
         results = {}
 
         # Default to all checkers if none specified
-        if checkers == "all":
+        if not checkers:
             checkers = {
                 Typechecker.MYPY,
                 Typechecker.TY,
@@ -184,6 +191,7 @@ class ConcurrentTypechecking:
             for name, result in zip(checkers, completed_results):
                 results[name] = result
 
-        print(f"Type checking completed in {time.time() - start:.2f} seconds")
+        total_duration = time.time() - start
+        print(f"Type checking completed in {total_duration:.2f} seconds")
 
-        return results
+        return total_duration, results
