@@ -35,6 +35,7 @@ async def example():
     for key in results:
         result = results[key]
         if isinstance(result, BaseException):
+            print(result)
             responses[key] = "An error occurred"
             continue
 
@@ -64,6 +65,7 @@ async def typecheck(code_snippet: CodeSnippet):
     for key in results:
         result = results[key]
         if isinstance(result, BaseException):
+            print(result)
             responses[key] = "An error occurred"
             continue
 
