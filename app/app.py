@@ -2,66 +2,46 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import json
 from typing import Literal
-from typechecker import ConcurrentTypechecking
+from typechecker import ConcurrentTypechecking, Typechecker
 
 app = FastAPI()
 
 
-class CodeSnippet(BaseModel):
-    code: str
+class TypecheckDebugRequest(BaseModel):
+    code_snippet: str
+    typecheckers: set[Typechecker] | None = None
 
 
-class TypecheckerkDebugResponse(BaseModel):
-    stdout: dict | list | str | None
-    stderr: dict | list | str | None
-    returncode: int
+class TypecheckDebugResult(BaseModel):
+    stdout: dict | list | str
+    stderr: dict | list | str
+    returncode: int | None
 
 
-class TypecheckResponse(BaseModel):
-    code: str
+class TypecheckDebugResponse(BaseModel):
+    code_snippet: str
     total_time: float
-    typecheckers: dict[str, TypecheckerkDebugResponse | Literal["An error occurred"]]
+    typecheckers: dict[str, TypecheckDebugResult | Literal["An error occurred"]]
 
 
-@app.get("/example")
-async def example():
-    program = """def greet(name: str) -> int:
+@app.get("/example-debug")
+async def example_debug():
+    program = """import requests
+def greet(name: str) -> int:
     return "Hello, " + name
     """
-    checker = ConcurrentTypechecking(program)
-    total_time, results = await checker.run()
+    return await typecheck_debug(TypecheckDebugRequest(code_snippet=program))
 
-    responses = dict()
-    for key in results:
-        result = results[key]
-        if isinstance(result, BaseException):
-            print(result)
-            responses[key] = "An error occurred"
-            continue
 
-        try:
-            responses[key] = TypecheckerkDebugResponse(
-                stdout=json.loads(result.stdout) if result.stdout != "" else {},
-                stderr=result.stderr,
-                returncode=result.returncode,
-            )
-        except json.JSONDecodeError:
-            responses[key] = TypecheckerkDebugResponse(
-                stdout=result.stdout,
-                stderr=result.stderr,
-                returncode=result.returncode,
-            )
-    return TypecheckResponse(
-        code=program, total_time=total_time, typecheckers=responses
+@app.post("/typecheck-debug", response_model=TypecheckDebugResponse)
+async def typecheck_debug(request: TypecheckDebugRequest):
+    checker = ConcurrentTypechecking(
+        request.code_snippet,
     )
-
-
-@app.post("/typecheck")
-async def typecheck(code_snippet: CodeSnippet):
-    checker = ConcurrentTypechecking(code_snippet.code)
-    total_time, results = await checker.run()
-
-    responses = dict()
+    total_time, results = await checker.run(
+        request.typecheckers if request.typecheckers else set()
+    )
+    responses: dict[str, TypecheckDebugResult | Literal["An error occurred"]] = dict()
     for key in results:
         result = results[key]
         if isinstance(result, BaseException):
@@ -70,17 +50,17 @@ async def typecheck(code_snippet: CodeSnippet):
             continue
 
         try:
-            responses[key] = TypecheckerkDebugResponse(
+            responses[key] = TypecheckDebugResult(
                 stdout=json.loads(result.stdout) if result.stdout != "" else {},
                 stderr=result.stderr,
                 returncode=result.returncode,
             )
         except json.JSONDecodeError:
-            responses[key] = TypecheckerkDebugResponse(
+            responses[key] = TypecheckDebugResult(
                 stdout=result.stdout,
                 stderr=result.stderr,
                 returncode=result.returncode,
             )
-    return TypecheckResponse(
-        code=code_snippet.code, total_time=total_time, typecheckers=responses
+    return TypecheckDebugResponse(
+        code_snippet=request.code_snippet, total_time=total_time, typecheckers=responses
     )
