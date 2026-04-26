@@ -6,7 +6,6 @@ from typechecker import ConcurrentTypechecking, Typechecker
 
 app = FastAPI()
 
-
 class TypecheckDebugRequest(BaseModel):
     code_snippet: str
     typecheckers: set[Typechecker] | None = None
@@ -15,13 +14,13 @@ class TypecheckDebugRequest(BaseModel):
 class TypecheckDebugResult(BaseModel):
     stdout: dict | list | str
     stderr: dict | list | str
-    returncode: int | None
+    returncode: int
 
 
 class TypecheckDebugResponse(BaseModel):
     code_snippet: str
     total_time: float
-    typecheckers: dict[str, TypecheckDebugResult | Literal["An error occurred"]]
+    results: dict[Typechecker, TypecheckDebugResult | Literal["An error occurred"]]
 
 
 @app.get("/example-debug")
@@ -41,7 +40,9 @@ async def typecheck_debug(request: TypecheckDebugRequest):
     total_time, results = await checker.run(
         request.typecheckers if request.typecheckers else set()
     )
-    responses: dict[str, TypecheckDebugResult | Literal["An error occurred"]] = dict()
+    responses: dict[
+        Typechecker, TypecheckDebugResult | Literal["An error occurred"]
+    ] = dict()
     for key in results:
         result = results[key]
         if isinstance(result, BaseException):
@@ -62,5 +63,5 @@ async def typecheck_debug(request: TypecheckDebugRequest):
                 returncode=result.returncode,
             )
     return TypecheckDebugResponse(
-        code_snippet=request.code_snippet, total_time=total_time, typecheckers=responses
+        code_snippet=request.code_snippet, total_time=total_time, results=responses
     )
