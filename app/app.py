@@ -6,6 +6,7 @@ from typechecker import ConcurrentTypechecking, Typechecker
 
 app = FastAPI()
 
+
 class TypecheckDebugRequest(BaseModel):
     code_snippet: str
     typecheckers: set[Typechecker] | None = None
