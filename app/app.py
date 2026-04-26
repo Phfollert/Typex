@@ -14,7 +14,7 @@ class TypecheckDebugRequest(BaseModel):
 class TypecheckDebugResult(BaseModel):
     stdout: dict | list | str
     stderr: dict | list | str
-    returncode: int
+    returncode: int | None
 
 
 class TypecheckDebugResponse(BaseModel):

@@ -19,7 +19,7 @@ class TypecheckerResult:
     checker: str
     stdout: str
     stderr: str
-    returncode: int | None = None
+    returncode: int | None
 
     @property
     def success(self) -> bool:
