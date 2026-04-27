@@ -1,7 +1,9 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
 import json
 from typing import Literal
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+
 from typechecker import ConcurrentTypechecking, Typechecker
 
 app = FastAPI()

@@ -1,6 +1,7 @@
-from typechecker import ConcurrentTypechecking, Typechecker
-import codecs
 import asyncio
+import codecs
+
+from typechecker import ConcurrentTypechecking, Typechecker
 
 if __name__ == "__main__":
     program = """
