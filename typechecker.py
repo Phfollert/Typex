@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
@@ -63,8 +64,8 @@ class ConcurrentTypechecking:
             "--output",
             "json",
             self.file,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
         return TypecheckerResult(
@@ -85,8 +86,8 @@ class ConcurrentTypechecking:
             "pyright",
             "--outputjson",
             self.file,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
         return TypecheckerResult(
@@ -109,8 +110,8 @@ class ConcurrentTypechecking:
             "--output-format",
             "gitlab",
             self.file,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
         return TypecheckerResult(
@@ -133,8 +134,8 @@ class ConcurrentTypechecking:
             "--output-format",
             "json",
             self.file,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         stdout, stderr = await process.communicate()
         return TypecheckerResult(
