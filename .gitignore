@@ -13,3 +13,6 @@ wheels/
 
 # caches
 .mypy_cache/
+
+# IDE settings
+.vscode/

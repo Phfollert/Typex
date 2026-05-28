@@ -1,10 +1,14 @@
 import json
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from diagnostics import Diagnostic
+from registry import CHECKERS
+from runner import run_checker
+from service import CheckerInfo, CheckerService
 from typechecker import ConcurrentTypechecking, Typechecker
 
 app = FastAPI()
@@ -16,6 +20,54 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class TypecheckRequest(BaseModel):
+    files: dict[str, str]
+    python_version: str = "3.12"
+
+
+class CheckerResultModel(BaseModel):
+    checker: str
+    version: str
+    returncode: int | None
+    diagnostics: list[Diagnostic]
+    raw_stdout: str
+    raw_stderr: str
+    error: str | None
+    duration: float
+
+
+def get_checker_service() -> CheckerService:
+    return CheckerService(specs=CHECKERS, run_fn=run_checker)
+
+
+ServiceDep = Annotated[CheckerService, Depends(get_checker_service)]
+
+
+@app.get("/checkers")
+async def list_checkers(service: ServiceDep) -> list[CheckerInfo]:
+    return service.list_checkers()
+
+
+@app.post("/checkers/{checker_id}/typecheck")
+async def typecheck(
+    checker_id: str, request: TypecheckRequest, service: ServiceDep
+) -> CheckerResultModel:
+    spec = service.get(checker_id)
+    if spec is None:
+        raise HTTPException(status_code=404, detail=f"unknown checker id: {checker_id}")
+    result = await service.run(spec, request.files, request.python_version)
+    return CheckerResultModel(
+        checker=result.checker,
+        version=result.version,
+        returncode=result.returncode,
+        diagnostics=result.diagnostics,
+        raw_stdout=result.raw_stdout,
+        raw_stderr=result.raw_stderr,
+        error=result.error,
+        duration=result.duration,
+    )
 
 
 class TypecheckDebugRequest(BaseModel):
