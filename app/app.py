@@ -1,5 +1,5 @@
 import json
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,8 +24,8 @@ class TypecheckDebugRequest(BaseModel):
 
 
 class TypecheckDebugResult(BaseModel):
-    stdout: dict | list | str
-    stderr: dict | list | str
+    stdout: dict[str, Any] | list[Any] | str
+    stderr: dict[str, Any] | list[Any] | str
     returncode: int | None
 
 
@@ -36,7 +36,7 @@ class TypecheckDebugResponse(BaseModel):
 
 
 @app.get("/example-debug")
-async def example_debug():
+async def example_debug() -> TypecheckDebugResponse:
     program = """import requests
 def greet(name: str) -> int:
     return "Hello, " + name
@@ -45,7 +45,7 @@ def greet(name: str) -> int:
 
 
 @app.post("/typecheck-debug", response_model=TypecheckDebugResponse)
-async def typecheck_debug(request: TypecheckDebugRequest):
+async def typecheck_debug(request: TypecheckDebugRequest) -> TypecheckDebugResponse:
     checker = ConcurrentTypechecking(
         request.code_snippet,
     )

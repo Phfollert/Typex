@@ -13,12 +13,11 @@ _SEVERITY = {
 class MypyAdapter(Adapter):
     name = "mypy"
 
-    def version_command(self) -> list[str]:
-        return ["mypy", "--version"]
-
-    def check_command(self, target: str, python_version: str) -> list[str]:
+    def check_command(
+        self, executable: str, target: str, python_version: str
+    ) -> list[str]:
         return [
-            "mypy",
+            executable,
             "--python-version",
             python_version,
             "--output",

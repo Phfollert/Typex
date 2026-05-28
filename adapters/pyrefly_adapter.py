@@ -14,12 +14,11 @@ _SEVERITY = {
 class PyreflyAdapter(Adapter):
     name = "pyrefly"
 
-    def version_command(self) -> list[str]:
-        return ["pyrefly", "--version"]
-
-    def check_command(self, target: str, python_version: str) -> list[str]:
+    def check_command(
+        self, executable: str, target: str, python_version: str
+    ) -> list[str]:
         return [
-            "pyrefly",
+            executable,
             "check",
             "--output-format",
             "json",

@@ -2,8 +2,10 @@ import asyncio
 import subprocess
 import tempfile
 import time
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class Typechecker(StrEnum):
@@ -48,7 +50,7 @@ class ConcurrentTypechecking:
         self.temp_file.flush()
         self.file = self.temp_file.name
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Close temporary file when object is destroyed."""
         self.temp_file.close()
 
@@ -159,7 +161,7 @@ class ConcurrentTypechecking:
                 - float: Total execution time in seconds
                 - dict[Typechecker, TypecheckerkResult | BaseException]: Dictionary mapping checker name to TypeCheckResult or exception
         """
-        results = {}
+        results: dict[Typechecker, TypecheckerResult | BaseException] = {}
 
         # Default to all checkers if none specified
         if not checkers:
@@ -180,7 +182,7 @@ class ConcurrentTypechecking:
         start = time.time()
 
         # Create tasks for all checkers to run concurrently
-        tasks = []
+        tasks: list[Coroutine[Any, Any, TypecheckerResult]] = []
 
         for name in checkers:
             tasks.append(checker_map[name]())

@@ -13,12 +13,11 @@ _SEVERITY = {
 class PyrightAdapter(Adapter):
     name = "pyright"
 
-    def version_command(self) -> list[str]:
-        return ["pyright", "--version"]
-
-    def check_command(self, target: str, python_version: str) -> list[str]:
+    def check_command(
+        self, executable: str, target: str, python_version: str
+    ) -> list[str]:
         return [
-            "pyright",
+            executable,
             "--outputjson",
             "--pythonversion",
             python_version,

@@ -15,12 +15,11 @@ _SEVERITY = {
 class TyAdapter(Adapter):
     name = "ty"
 
-    def version_command(self) -> list[str]:
-        return ["ty", "--version"]
-
-    def check_command(self, target: str, python_version: str) -> list[str]:
+    def check_command(
+        self, executable: str, target: str, python_version: str
+    ) -> list[str]:
         return [
-            "ty",
+            executable,
             "check",
             "--output-format",
             "gitlab",
