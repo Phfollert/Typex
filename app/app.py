@@ -2,7 +2,6 @@ import json
 from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from diagnostics import Diagnostic
@@ -12,14 +11,6 @@ from service import CheckerInfo, CheckerService
 from typechecker import ConcurrentTypechecking, Typechecker
 
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 class TypecheckRequest(BaseModel):
@@ -45,12 +36,12 @@ def get_checker_service() -> CheckerService:
 ServiceDep = Annotated[CheckerService, Depends(get_checker_service)]
 
 
-@app.get("/checkers")
+@app.get("/api/checkers")
 async def list_checkers(service: ServiceDep) -> list[CheckerInfo]:
     return service.list_checkers()
 
 
-@app.post("/checkers/{checker_id}/typecheck")
+@app.post("/api/checkers/{checker_id}/typecheck")
 async def typecheck(
     checker_id: str, request: TypecheckRequest, service: ServiceDep
 ) -> CheckerResultModel:
@@ -87,7 +78,7 @@ class TypecheckDebugResponse(BaseModel):
     results: dict[Typechecker, TypecheckDebugResult | Literal["An error occurred"]]
 
 
-@app.get("/example-debug")
+@app.get("/api/example-debug")
 async def example_debug() -> TypecheckDebugResponse:
     program = """import requests
 def greet(name: str) -> int:
@@ -96,7 +87,7 @@ def greet(name: str) -> int:
     return await typecheck_debug(TypecheckDebugRequest(code_snippet=program))
 
 
-@app.post("/typecheck-debug", response_model=TypecheckDebugResponse)
+@app.post("/api/typecheck-debug", response_model=TypecheckDebugResponse)
 async def typecheck_debug(request: TypecheckDebugRequest) -> TypecheckDebugResponse:
     checker = ConcurrentTypechecking(
         request.code_snippet,
