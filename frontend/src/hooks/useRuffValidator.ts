@@ -1,0 +1,102 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import initRuff, { PositionEncoding, Workspace, InitOutput } from '@astral-sh/ruff-wasm-web';
+
+// Keep track of the initial promise so we only initialize WASM once per application
+let initPromise: Promise<InitOutput> | null = null;
+function ensureInit() {
+  if (!initPromise) {
+    initPromise = initRuff();
+  }
+  return initPromise;
+}
+
+export function useRuffValidator(initialVersion: string = 'py310') {
+  const [targetVersion, setTargetVersion] = useState(initialVersion);
+  const [isReady, setIsReady] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // Use a ref to hold the workspace safely without causing async closure traps
+  const workspaceRef = useRef<Workspace | null>(null);
+
+  // Incrementing token guarantees validateCode gets a new identity when the workspace is fully ready
+  const [readyToken, setReadyToken] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function initialize() {
+      if (mounted) setIsReady(false);
+
+      try {
+        await ensureInit();
+
+        if (mounted) {
+          // Free any existing workspace before creating a new one
+          if (workspaceRef.current) {
+            try {
+              workspaceRef.current.free();
+            } catch (e) {
+              console.warn("Failed to free previous workspace:", e);
+            }
+            workspaceRef.current = null;
+          }
+
+          const options = {
+            "target-version": targetVersion,
+          };
+
+          workspaceRef.current = new Workspace(options, PositionEncoding.Utf16);
+          setIsReady(true);
+          setReadyToken(t => t + 1); // Trigger consumers to re-validate
+          setError(null);
+        }
+      } catch (err: any) {
+        console.error("Failed to initialize Ruff WASM", err);
+        if (mounted) {
+          setError(err.message || String(err));
+          setIsReady(false);
+        }
+      }
+    }
+
+    initialize();
+
+    return () => {
+      mounted = false;
+      if (workspaceRef.current) {
+        // We can free it safely now because validateCode checks the ref
+        try {
+          workspaceRef.current.free();
+        } catch (e) {
+          console.warn("Error freeing workspace on unmount:", e);
+        }
+        workspaceRef.current = null;
+      }
+    };
+  }, [targetVersion]);
+
+  const validateCode = useCallback((code: string) => {
+    // If the workspace has been freed or is not ready, do not attempt to validate
+    if (!workspaceRef.current || !isReady) return [];
+
+    try {
+      const result = workspaceRef.current.check(code);
+      setDiagnostics(result);
+      return result;
+    } catch (err) {
+      console.error("Validation error:", err);
+      // Wait to see if this handles the error gracefully
+      return [];
+    }
+  }, [isReady, readyToken]); // Include readyToken to force new identity on readiness
+
+  return {
+    isReady,
+    error,
+    targetVersion,
+    setTargetVersion,
+    diagnostics,
+    validateCode
+  };
+}

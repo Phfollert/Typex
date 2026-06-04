@@ -1,18 +1,45 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
-dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Python virtual envs (backend's .venv + provisioned checker venvs)
 .venv
 .venvs/
-.vercel
 
-# caches
+# Python caches
 .mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.uv_cache/
+.uv_python/
 
-# IDE settings
+# JS / Vite
+node_modules
+dist
+dist-ssr
+*.local
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / OS
 .vscode/
+.idea
+.DS_Store
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Deploy
+.vercel
