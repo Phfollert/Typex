@@ -5,7 +5,13 @@ from diagnostics import Diagnostic
 
 
 def relpath(path: str, workspace_dir: str) -> str:
-    """Make an absolute checker-reported path relative to the workspace root."""
+    """Make an checker reported path relative to the workspace root.
+
+    mypy/ty/pyrefly emit paths relative to the workspace (their cwd); pyright
+    emits absolute paths.
+    """
+    if not os.path.isabs(path):
+        return path
     try:
         return os.path.relpath(path, workspace_dir)
     except ValueError:
