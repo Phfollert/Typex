@@ -1,7 +1,10 @@
 import json
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from diagnostics import Diagnostic
@@ -120,3 +123,21 @@ async def typecheck_debug(request: TypecheckDebugRequest) -> TypecheckDebugRespo
     return TypecheckDebugResponse(
         code_snippet=request.code_snippet, total_time=total_time, results=responses
     )
+
+
+STATIC_DIR = Path("static")
+
+app.mount(
+    "/assets",
+    StaticFiles(directory=STATIC_DIR / "assets", check_dir=False),
+    name="assets",
+)
+
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str) -> FileResponse:
+    candidate = STATIC_DIR / full_path
+    if candidate.is_file():
+        return FileResponse(candidate)
+    return FileResponse(STATIC_DIR / "index.html")
+
