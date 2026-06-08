@@ -41,6 +41,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   return (
     <div className="toolbar">
+      <span className="run-status">
+        {isSubmitting
+          ? 'Checking…'
+          : !isValid
+            ? 'Invalid syntax'
+            : runSummary
+              ? runSummary
+              : ''}
+      </span>
+
       <div className="typecheckers-container">
         {checkers.map(tc => (
           <label key={tc.id} className="typechecker-label">
@@ -70,16 +80,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
           ))}
         </select>
       </div>
-      
-      <span className="run-status">
-        {isSubmitting
-          ? 'Checking…'
-          : !isValid
-            ? 'Invalid syntax'
-            : runSummary
-              ? runSummary
-              : ''}
-      </span>
     </div>
   );
 };

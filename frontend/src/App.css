@@ -179,6 +179,8 @@
 /* Toolbar Specific */
 .toolbar {
   display: flex;
+  flex: 1;
+  min-width: 0;
   gap: 1rem;
   align-items: center;
 }
@@ -242,6 +244,19 @@
 
 .version-select option {
   background: var(--bg-secondary);
+}
+
+/* Absorbs the flexible gap left of the checkers, so its changing text never
+   reflows them; shrinks and ellipsizes instead of overflowing on small screens. */
+.run-status {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .submit-btn {
