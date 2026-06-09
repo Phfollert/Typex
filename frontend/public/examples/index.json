@@ -1,0 +1,34 @@
+[
+  {
+    "id": "generics-self-basic",
+    "title": "Self type (basic)",
+    "category": "Conformance",
+    "description": "typing.Self in methods, classmethods, and generics.",
+    "files": ["generics-self-basic/main.py"],
+    "pythonVersion": "3.12"
+  },
+  {
+    "id": "aliases-type-statement",
+    "title": "type statement (PEP 695)",
+    "category": "Conformance",
+    "description": "The 3.12 type alias statement and its error cases.",
+    "files": ["aliases-type-statement/main.py"],
+    "pythonVersion": "3.12"
+  },
+  {
+    "id": "directives-reveal-type",
+    "title": "reveal_type directive",
+    "category": "Conformance",
+    "description": "reveal_type diagnostics and arity errors.",
+    "files": ["directives-reveal-type/main.py"],
+    "pythonVersion": "3.12"
+  },
+  {
+    "id": "narrowing-typeguard",
+    "title": "TypeGuard narrowing",
+    "category": "Conformance",
+    "description": "User-defined TypeGuard functions and narrowing rules.",
+    "files": ["narrowing-typeguard/main.py"],
+    "pythonVersion": "3.12"
+  }
+]
