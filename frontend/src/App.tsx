@@ -3,6 +3,9 @@ import './App.css';
 import { useRuffValidator } from './hooks/useRuffValidator';
 import Toolbar from './components/Toolbar';
 import EditorPane from './components/EditorPane';
+import ExamplePicker from './components/ExamplePicker';
+import { loadIndex, loadExample } from './examples/loader';
+import type { ExampleEntry } from './examples/types';
 import type { CheckerInfo, CheckerResult, EditorDiagnostic } from './types';
 
 const DEFAULT_FILE = 'main.py';
@@ -20,6 +23,11 @@ function ruffToPythonVersion(target: string): string {
   return `${digits[0]}.${digits.slice(1)}`;
 }
 
+// backend python_version ("3.12") -> Ruff target ("py312")
+function pythonToRuffVersion(version: string): string {
+  return `py${version.replace('.', '')}`;
+}
+
 
 function App() {
   const { isReady, targetVersion, setTargetVersion, validateCode } = useRuffValidator('py312');
@@ -33,6 +41,10 @@ function App() {
   const [runSummary, setRunSummary] = useState<string | null>(null);
   const [addingFile, setAddingFile] = useState(false);
   const [newFileName, setNewFileName] = useState('');
+  const [exampleEntries, setExampleEntries] = useState<ExampleEntry[]>([]);
+  // Bumped whenever the whole workspace is replaced (example load / upload), to force a
+  // full re-validation of every file
+  const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
   const runIdRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,7 +70,7 @@ function App() {
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isReady, targetVersion, validateCode]);
+  }, [isReady, targetVersion, validateCode, workspaceEpoch]);
 
   // Load available typecheckers from the backend instead of hardcoding them
   useEffect(() => {
@@ -72,6 +84,12 @@ function App() {
         setSelectedCheckerIds(data.map((c) => c.id));
       })
       .catch((err) => console.error('Failed to load checkers:', err));
+  }, []);
+
+  useEffect(() => {
+    loadIndex()
+      .then(setExampleEntries)
+      .catch((err) => console.error('Failed to load examples:', err));
   }, []);
 
   const addLog = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
@@ -217,6 +235,23 @@ function App() {
     setPanes([primary, ...names.filter((n) => n !== primary)]);
   };
 
+  const handleLoadExample = async (entry: ExampleEntry) => {
+    let loaded;
+    try {
+      loaded = await loadExample(entry);
+    } catch (err) {
+      console.error(`Failed to load example "${entry.id}":`, err);
+      return;
+    }
+
+    setFiles(loaded.files);
+    setPanes(loaded.order);
+    if (loaded.pythonVersion) {
+      setTargetVersion(pythonToRuffVersion(loaded.pythonVersion));
+    }
+    setWorkspaceEpoch((e) => e + 1); // triggers the bulk re-validate effect
+  };
+
   return (
     <div className="app-container">
 
@@ -261,6 +296,7 @@ function App() {
                 style={{ display: 'none' }}
                 onChange={handleUpload}
               />
+              <ExamplePicker entries={exampleEntries} onPick={handleLoadExample} />
             </div>
             <Toolbar
               checkers={checkers}
