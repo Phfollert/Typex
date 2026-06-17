@@ -52,17 +52,22 @@ const Toolbar: React.FC<ToolbarProps> = ({
       </span>
 
       <div className="typecheckers-container">
-        {checkers.map(tc => (
-          <label key={tc.id} className="typechecker-label">
-            <input
-              type="checkbox"
-              className="typechecker-checkbox"
-              checked={selectedCheckerIds.includes(tc.id)}
-              onChange={() => toggleTypechecker(tc.id)}
-            />
-            {tc.label}
-          </label>
-        ))}
+        {checkers.map(tc => {
+          const active = selectedCheckerIds.includes(tc.id);
+          return (
+            <button
+              key={tc.id}
+              type="button"
+              className={`checker-chip${active ? '' : ' off'}`}
+              style={{ ['--c' as string]: tc.color }}
+              aria-pressed={active}
+              onClick={() => toggleTypechecker(tc.id)}
+              title={active ? `Hide ${tc.label}` : `Show ${tc.label}`}
+            >
+              {tc.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="version-selector-container">

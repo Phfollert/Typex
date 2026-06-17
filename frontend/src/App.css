@@ -249,11 +249,32 @@
 .typecheckers-container {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  background: var(--bg-tertiary);
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
+  gap: 0.5rem;
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.checker-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  border: 1.5px solid var(--c);
+  border-radius: 14px;
+  padding: 2px 11px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.checker-chip.off {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: var(--border-color);
+}
+
+.checker-chip:hover {
+  opacity: 0.85;
 }
 
 .typechecker-label {
