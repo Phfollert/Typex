@@ -13,6 +13,7 @@ class CheckerInfo(BaseModel):
     checker: str
     version: str
     label: str
+    color: str
 
 
 class CheckerService:
@@ -25,7 +26,13 @@ class CheckerService:
 
     def list_checkers(self) -> list[CheckerInfo]:
         return [
-            CheckerInfo(id=s.id, checker=s.checker, version=s.version, label=s.label)
+            CheckerInfo(
+                id=s.id,
+                checker=s.checker,
+                version=s.version,
+                label=s.label,
+                color=s.color,
+            )
             for s in self.specs.values()
         ]
 

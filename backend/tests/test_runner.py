@@ -40,7 +40,11 @@ def test_run_checker_resolves_multifile_imports(checker_id: str) -> None:
 
 def test_run_checker_reports_error_for_missing_executable() -> None:
     spec = CheckerSpec(
-        id="broken", checker="fake", version="0", executable="/nonexistent/checker"
+        id="broken",
+        checker="fake",
+        version="0",
+        executable="/nonexistent/checker",
+        color="#000000",
     )
     result = asyncio.run(
         run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter())

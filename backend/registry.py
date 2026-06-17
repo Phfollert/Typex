@@ -26,6 +26,7 @@ class CheckerSpec:
     checker: str
     version: str
     executable: str
+    color: str
 
     @property
     def label(self) -> str:
@@ -38,6 +39,8 @@ def load_checkers(config_path: Path = CONFIG_PATH) -> list[CheckerSpec]:
     for entry in data["checker"]:
         checker = entry["checker"]
         spec_id = entry["id"]
+        if "color" not in entry:
+            raise ValueError(f"checker {spec_id!r} in {config_path} has no 'color'")
         executable = str(VENVS_DIR / spec_id / "bin" / checker)
         specs.append(
             CheckerSpec(
@@ -45,6 +48,7 @@ def load_checkers(config_path: Path = CONFIG_PATH) -> list[CheckerSpec]:
                 checker=checker,
                 version=entry["version"],
                 executable=executable,
+                color=entry["color"],
             )
         )
     return specs

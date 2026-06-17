@@ -7,7 +7,11 @@ from runner import CheckerResult
 from service import CheckerService
 
 FAKE_SPEC = CheckerSpec(
-    id="fake-1.0", checker="fake", version="1.0", executable="/nonexistent/fake"
+    id="fake-1.0",
+    checker="fake",
+    version="1.0",
+    executable="/nonexistent/fake",
+    color="#000000",
 )
 
 

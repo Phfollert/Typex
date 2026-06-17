@@ -2,18 +2,22 @@
 id = "mypy-1.20.2"
 checker = "mypy"
 version = "1.20.2"
+color = "#ef4444"
 
 [[checker]]
 id = "pyright-1.1.409"
 checker = "pyright"
 version = "1.1.409"
+color = "#3b82f6"
 
 [[checker]]
 id = "ty-0.0.32"
 checker = "ty"
 version = "0.0.32"
+color = "#10b981"
 
 [[checker]]
 id = "pyrefly-0.62.0"
 checker = "pyrefly"
 version = "0.62.0"
+color = "#f59e0b"
