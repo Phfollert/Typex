@@ -178,7 +178,15 @@ function App() {
   // change. Each change invalidates any in-flight run; only runs while all files are valid.
   useEffect(() => {
     const runId = ++runIdRef.current;
-    if (!isReady || selectedCheckerIds.length === 0 || !canRun) return;
+    if (!isReady) return;
+    // No checkers selected: there's nothing to run, so clear any stale squiggles
+    // and summary instead of leaving the last run's results on screen.
+    if (selectedCheckerIds.length === 0) {
+      setTypecheckerDiagnostics([]);
+      setRunSummary(null);
+      return;
+    }
+    if (!canRun) return;
     const handle = setTimeout(() => runCheckers(runId), AUTO_RUN_DELAY);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
