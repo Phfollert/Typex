@@ -2,7 +2,7 @@
 // decorations. One <style> element holds every generated rule; classes are
 // cached so each (color, depth, shape) combination is injected once.
 
-export type SquiggleShape = 'wavy' | 'dotted';
+export type SquiggleShape = 'wavy' | 'dotted' | 'faint';
 
 let styleEl: HTMLStyleElement | null = null;
 const classCache = new Map<string, string>();
@@ -22,7 +22,9 @@ export function squiggleTile(color: string, shape: SquiggleShape): string {
   const inner =
     shape === 'wavy'
       ? `<path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="${stroke}" fill="none" />`
-      : `<circle cx="1.5" cy="2" r="0.9" fill="${stroke}" /><circle cx="4.5" cy="2" r="0.9" fill="${stroke}" />`;
+      : shape === 'dotted'
+        ? `<circle cx="1.5" cy="2" r="0.9" fill="${stroke}" /><circle cx="4.5" cy="2" r="0.9" fill="${stroke}" />`
+        : `<circle cx="1.5" cy="2" r="0.7" fill="${stroke}" fill-opacity="0.5" /><circle cx="4.5" cy="2" r="0.7" fill="${stroke}" fill-opacity="0.5" />`;
   return `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6">${inner}</svg>')`;
 }
 

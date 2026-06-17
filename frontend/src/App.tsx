@@ -141,7 +141,7 @@ function App() {
           addLog(`[${id}] unknown checker id; dropping ${result.diagnostics.length} diagnostics`, 'error');
           return;
         }
-        if (result.diagnostics.length > 0) checkersWithIssues++;
+        if (result.diagnostics.some((d) => d.severity !== 'information')) checkersWithIssues++;
         for (const d of result.diagnostics) {
           newDiags.push({
             file: d.file,
@@ -153,6 +153,7 @@ function App() {
             endLine: d.end_line,
             endColumn: d.end_column,
             message: d.code ? `${d.message} (${d.code})` : d.message,
+            severity: d.severity,
           });
         }
       });

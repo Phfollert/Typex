@@ -58,17 +58,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
       return { ...d, depth };
     });
 
-    const newDecorations = diagsWithDepth.map(d => {
-      const setter = bgSetterClass(d.color, d.depth, 'wavy');
-      return {
-        range: new monaco.Range(d.line, d.character, d.endLine || d.line, d.endColumn || (d.character + 10)),
-        options: {
-          isWholeLine: false,
-          inlineClassName: `squiggly-base squiggly-depth-${d.depth} ${setter}`,
-          hoverMessage: { value: `**${d.checkerLabel ?? d.checker}**: ${d.message}` }
-        }
-      };
-    });
+    const newDecorations = diagsWithDepth
+      .map(d => {
+        const shape = d.severity === 'error' ? 'wavy' : d.severity === 'warning' ? 'dotted' : 'faint';
+        const setter = bgSetterClass(d.color, d.depth, shape);
+        const sevLabel = d.severity === 'error' ? '✕ error' : d.severity === 'warning' ? '⚠ warning' : 'ⓘ info';
+        return {
+          range: new monaco.Range(d.line, d.character, d.endLine || d.line, d.endColumn || (d.character + 10)),
+          options: {
+            isWholeLine: false,
+            inlineClassName: `squiggly-base squiggly-depth-${d.depth} ${setter}`,
+            hoverMessage: { value: `**${d.checkerLabel ?? d.checker}** · ${sevLabel}\n\n${d.message}` }
+          }
+        };
+      });
 
     typecheckerDecorationsRef.current = editorInstance.deltaDecorations(typecheckerDecorationsRef.current, newDecorations);
 

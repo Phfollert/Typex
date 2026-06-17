@@ -40,4 +40,5 @@ export interface EditorDiagnostic {
   endLine: number;
   endColumn: number;
   message: string;
+  severity: Severity;
 }
