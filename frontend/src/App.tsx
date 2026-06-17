@@ -123,6 +123,7 @@ function App() {
       if (runId !== runIdRef.current) return;
 
       const newDiags: EditorDiagnostic[] = [];
+      const checkerById = new Map(checkers.map((c) => [c.id, c]));
       let checkersWithIssues = 0;
       settled.forEach((outcome, i) => {
         const id = selectedCheckerIds[i];
@@ -135,11 +136,18 @@ function App() {
           addLog(`[${result.checker} ${result.version}] failed: ${result.error}`, 'error');
           return;
         }
+        const info = checkerById.get(id);
+        if (!info) {
+          addLog(`[${id}] unknown checker id; dropping ${result.diagnostics.length} diagnostics`, 'error');
+          return;
+        }
         if (result.diagnostics.length > 0) checkersWithIssues++;
         for (const d of result.diagnostics) {
           newDiags.push({
             file: d.file,
             checker: result.checker,
+            checkerLabel: info.label,
+            color: info.color,
             line: d.line,
             character: d.column,
             endLine: d.end_line,

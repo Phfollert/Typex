@@ -3,6 +3,7 @@ export interface CheckerInfo {
   checker: string;
   version: string;
   label: string;
+  color: string;
 }
 
 export type Severity = 'error' | 'warning' | 'information';
@@ -32,6 +33,8 @@ export interface CheckerResult {
 export interface EditorDiagnostic {
   file: string;
   checker: string;
+  checkerLabel: string;
+  color: string;
   line: number;
   character: number;
   endLine: number;

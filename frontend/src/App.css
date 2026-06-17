@@ -420,27 +420,4 @@
 .squiggly-depth-3 { padding-bottom: 9px; }
 .squiggly-depth-4 { padding-bottom: 12px; }
 
-/* Mypy (Red: #ef4444) */
-.squiggly-mypy-1 { --bg-1: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23ef4444" fill="none" /></svg>'); }
-.squiggly-mypy-2 { --bg-2: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23ef4444" fill="none" /></svg>'); }
-.squiggly-mypy-3 { --bg-3: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23ef4444" fill="none" /></svg>'); }
-.squiggly-mypy-4 { --bg-4: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23ef4444" fill="none" /></svg>'); }
-
-/* Pyright (Blue: #3b82f6) */
-.squiggly-pyright-1 { --bg-1: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%233b82f6" fill="none" /></svg>'); }
-.squiggly-pyright-2 { --bg-2: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%233b82f6" fill="none" /></svg>'); }
-.squiggly-pyright-3 { --bg-3: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%233b82f6" fill="none" /></svg>'); }
-.squiggly-pyright-4 { --bg-4: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%233b82f6" fill="none" /></svg>'); }
-
-/* Ty (Green: #10b981) */
-.squiggly-ty-1 { --bg-1: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%2310b981" fill="none" /></svg>'); }
-.squiggly-ty-2 { --bg-2: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%2310b981" fill="none" /></svg>'); }
-.squiggly-ty-3 { --bg-3: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%2310b981" fill="none" /></svg>'); }
-.squiggly-ty-4 { --bg-4: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%2310b981" fill="none" /></svg>'); }
-
-/* Pyrefly (Yellow: #f59e0b) */
-.squiggly-pyrefly-1 { --bg-1: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23f59e0b" fill="none" /></svg>'); }
-.squiggly-pyrefly-2 { --bg-2: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23f59e0b" fill="none" /></svg>'); }
-.squiggly-pyrefly-3 { --bg-3: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23f59e0b" fill="none" /></svg>'); }
-.squiggly-pyrefly-4 { --bg-4: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6"><path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="%23f59e0b" fill="none" /></svg>'); }
 

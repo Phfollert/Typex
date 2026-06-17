@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import { editor } from 'monaco-editor';
+import { bgSetterClass } from '../squiggle';
 
 interface CodeEditorProps {
   code: string;
@@ -58,12 +59,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     });
 
     const newDecorations = diagsWithDepth.map(d => {
+      const setter = bgSetterClass(d.color, d.depth, 'wavy');
       return {
         range: new monaco.Range(d.line, d.character, d.endLine || d.line, d.endColumn || (d.character + 10)),
         options: {
           isWholeLine: false,
-          inlineClassName: `squiggly-base squiggly-depth-${d.depth} squiggly-${d.checker}-${d.depth}`,
-          hoverMessage: { value: `**${d.checker}**: ${d.message}` }
+          inlineClassName: `squiggly-base squiggly-depth-${d.depth} ${setter}`,
+          hoverMessage: { value: `**${d.checkerLabel ?? d.checker}**: ${d.message}` }
         }
       };
     });
