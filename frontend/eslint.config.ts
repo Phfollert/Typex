@@ -21,6 +21,17 @@ export default tseslint.config([
     },
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^\\.\\.(/|$)',
+              message: 'Use the @/ alias for cross-directory imports; reserve ./ for same-directory siblings.',
+            },
+          ],
+        },
+      ],
     },
   },
 ])
