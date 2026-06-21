@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import type { ExampleEntry } from '../examples/types';
+import type { ExampleEntry } from '@/examples/types';
 
 interface Props {
   entries: ExampleEntry[];

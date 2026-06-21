@@ -1,6 +1,6 @@
 import React from 'react';
 import CodeEditor from './CodeEditor';
-import type { EditorDiagnostic } from '../types';
+import type { EditorDiagnostic } from '@/types';
 
 interface EditorPaneProps {
   file: string;

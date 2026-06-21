@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import { editor } from 'monaco-editor';
-import { bgSetterClass } from '../squiggle';
+import { bgSetterClass } from '@/squiggle';
 
 interface CodeEditorProps {
   code: string;

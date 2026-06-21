@@ -1,5 +1,5 @@
 import React from 'react';
-import type { CheckerInfo } from '../types';
+import type { CheckerInfo } from '@/types';
 
 interface ToolbarProps {
   checkers: CheckerInfo[];
