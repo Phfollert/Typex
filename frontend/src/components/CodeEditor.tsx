@@ -2,13 +2,14 @@ import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import { editor } from 'monaco-editor';
 import { bgSetterClass } from '@/squiggle';
+import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
 interface CodeEditorProps {
   code: string;
   onChange: (val: string) => void;
-  diagnostics: any[];
+  diagnostics: RuffDiagnostic[];
   isReady: boolean;
-  typecheckerDiagnostics?: any[];
+  typecheckerDiagnostics?: EditorDiagnostic[];
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, isReady, typecheckerDiagnostics = [] }) => {
@@ -44,7 +45,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     }
   }, [typecheckerDiagnostics]);
 
-  const updateTypecheckerDecorations = (diags: any[], monaco: Monaco, editorInstance: editor.IStandaloneCodeEditor) => {
+  const updateTypecheckerDecorations = (diags: EditorDiagnostic[], monaco: Monaco, editorInstance: editor.IStandaloneCodeEditor) => {
     // 1. Group diagnostics by line to assign depth dynamically
     const lineDepths: Record<number, Set<string>> = {}; // line -> Set of checkers
     const diagsWithDepth = (diags || []).map(d => {
@@ -104,7 +105,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     });
   };
 
-  const updateMarkers = (diags: any[], monaco: Monaco, model: editor.ITextModel | null) => {
+  const updateMarkers = (diags: RuffDiagnostic[], monaco: Monaco, model: editor.ITextModel | null) => {
     if (!diags || !model) {
       if (model) {
         monaco.editor.setModelMarkers(model, "ruff", []);
@@ -112,20 +113,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
       return;
     }
 
-    const markers = diags.map((d) => {
-      // Handle the case where location/end_location might be named differently in WASM API
-      const start = d.location || d.start_location || { row: 1, column: 1 };
-      const end = d.end_location || d.location || { row: 1, column: 1 };
-
-      return {
-        severity: monaco.MarkerSeverity.Error, // By default mostly error/warning
-        message: d.message || "Syntax issue",
-        startLineNumber: start.row,
-        startColumn: start.column,
-        endLineNumber: end.row,
-        endColumn: end.column,
-      };
-    });
+    const markers = diags.map((d) => ({
+      severity: monaco.MarkerSeverity.Error, // By default mostly error/warning
+      message: d.message || "Syntax issue",
+      startLineNumber: d.start_location.row,
+      startColumn: d.start_location.column,
+      endLineNumber: d.end_location.row,
+      endColumn: d.end_location.column,
+    }));
 
     monaco.editor.setModelMarkers(model, "ruff", markers);
   };

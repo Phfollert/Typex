@@ -1,6 +1,6 @@
 import React from 'react';
 import CodeEditor from './CodeEditor';
-import type { EditorDiagnostic } from '@/types';
+import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
 interface EditorPaneProps {
   file: string;
@@ -9,7 +9,7 @@ interface EditorPaneProps {
   onChangeContent: (content: string) => void;
   onSelectFile: (file: string) => void;
   onClose: (() => void) | null;
-  ruffDiagnostics: any[];
+  ruffDiagnostics: RuffDiagnostic[];
   typecheckerDiagnostics: EditorDiagnostic[];
   isReady: boolean;
 }

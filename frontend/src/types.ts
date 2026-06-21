@@ -1,3 +1,7 @@
+// Raw diagnostic shape returned by the Ruff WASM Workspace.check() (start_location /
+// end_location, 1-indexed rows).
+export type { Diagnostic as RuffDiagnostic } from '@astral-sh/ruff-wasm-web';
+
 export interface CheckerInfo {
   id: string;
   checker: string;
@@ -8,7 +12,7 @@ export interface CheckerInfo {
 
 export type Severity = 'error' | 'warning' | 'information';
 
-export interface Diagnostic {
+export interface CheckerDiagnostic {
   file: string;
   line: number;
   column: number;
@@ -23,7 +27,7 @@ export interface CheckerResult {
   checker: string;
   version: string;
   returncode: number | null;
-  diagnostics: Diagnostic[];
+  diagnostics: CheckerDiagnostic[];
   raw_stdout: string;
   raw_stderr: string;
   error: string | null;

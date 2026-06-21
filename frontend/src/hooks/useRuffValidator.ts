@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import initRuff, { PositionEncoding, Workspace, InitOutput } from '@astral-sh/ruff-wasm-web';
+import type { RuffDiagnostic } from '@/types';
 
 // Keep track of the initial promise so we only initialize WASM once per application
 let initPromise: Promise<InitOutput> | null = null;
@@ -13,7 +14,7 @@ function ensureInit() {
 export function useRuffValidator(initialVersion: string = 'py310') {
   const [targetVersion, setTargetVersion] = useState(initialVersion);
   const [isReady, setIsReady] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [diagnostics, setDiagnostics] = useState<RuffDiagnostic[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // Use a ref to hold the workspace safely without causing async closure traps
@@ -51,10 +52,10 @@ export function useRuffValidator(initialVersion: string = 'py310') {
           setReadyToken(t => t + 1); // Trigger consumers to re-validate
           setError(null);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to initialize Ruff WASM", err);
         if (mounted) {
-          setError(err.message || String(err));
+          setError(err instanceof Error ? err.message : String(err));
           setIsReady(false);
         }
       }
@@ -76,12 +77,13 @@ export function useRuffValidator(initialVersion: string = 'py310') {
     };
   }, [targetVersion]);
 
-  const validateCode = useCallback((code: string) => {
+  const validateCode = useCallback((code: string): RuffDiagnostic[] => {
     // If the workspace has been freed or is not ready, do not attempt to validate
     if (!workspaceRef.current || !isReady) return [];
 
     try {
-      const result = workspaceRef.current.check(code);
+      // Workspace.check() is typed `any` by the package; it returns RuffDiagnostic[].
+      const result = workspaceRef.current.check(code) as RuffDiagnostic[];
       setDiagnostics(result);
       return result;
     } catch (err) {

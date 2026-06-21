@@ -6,7 +6,7 @@ import EditorPane from './components/EditorPane';
 import ExamplePicker from './components/ExamplePicker';
 import { loadIndex, loadExample } from './examples/loader';
 import type { ExampleEntry } from './examples/types';
-import type { CheckerInfo, CheckerResult, EditorDiagnostic } from './types';
+import type { CheckerInfo, CheckerResult, EditorDiagnostic, RuffDiagnostic } from './types';
 
 const DEFAULT_FILE = 'main.py';
 const AUTO_RUN_DELAY = 800; // ms of inactivity before auto-running the checkers
@@ -33,7 +33,7 @@ function App() {
   const { isReady, targetVersion, setTargetVersion, validateCode } = useRuffValidator('py312');
   const [files, setFiles] = useState<Record<string, string>>({ [DEFAULT_FILE]: DEFAULT_CODE });
   const [panes, setPanes] = useState<string[]>([DEFAULT_FILE]);
-  const [ruffByFile, setRuffByFile] = useState<Record<string, any[]>>({});
+  const [ruffByFile, setRuffByFile] = useState<Record<string, RuffDiagnostic[]>>({});
   const [checkers, setCheckers] = useState<CheckerInfo[]>([]);
   const [selectedCheckerIds, setSelectedCheckerIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,7 +63,7 @@ function App() {
   useEffect(() => {
     if (!isReady) return;
     setRuffByFile(() => {
-      const next: Record<string, any[]> = {};
+      const next: Record<string, RuffDiagnostic[]> = {};
       for (const [name, content] of Object.entries(files)) {
         next[name] = validateCode(content);
       }

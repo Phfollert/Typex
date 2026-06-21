@@ -1,16 +1,9 @@
 import React from 'react';
-
-interface Diagnostic {
-  location?: { row: number; column?: number };
-  start_location?: { row: number; column?: number };
-  message: string;
-  code?: string;
-  [key: string]: any;
-}
+import type { RuffDiagnostic } from '@/types';
 
 interface ValidationPanelProps {
   isReady: boolean;
-  diagnostics: Diagnostic[];
+  diagnostics: RuffDiagnostic[];
   targetVersion: string;
 }
 
@@ -41,7 +34,7 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({ isReady, diagnostics,
           <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {diagnostics.map((diag, i) => (
               <div key={i} style={{ padding: '0.75rem', background: 'var(--bg-primary)', borderLeft: '3px solid var(--error)', borderRadius: '4px', fontSize: '0.85rem' }}>
-                <span style={{ fontWeight: 'bold', color: 'var(--error)', marginRight: '0.5rem' }}>Line {diag.location?.row || diag.start_location?.row}:</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--error)', marginRight: '0.5rem' }}>Line {diag.start_location.row}:</span>
                 <span style={{ color: 'var(--text-secondary)' }}>{diag.message}</span>
                 {diag.code && <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>({diag.code})</span>}
               </div>
