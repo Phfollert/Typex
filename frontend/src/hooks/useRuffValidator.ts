@@ -42,6 +42,9 @@ export function useRuffValidator(initialVersion: string = 'py310') {
 
           const options = {
             "target-version": targetVersion,
+            // Ruff is a syntax gate only: keep parser/syntax errors, drop lint findings
+            // (e.g. F821) so lint noise doesn't block the typecheckers.
+            lint: { select: [] },
           };
 
           workspaceRef.current = new Workspace(options, PositionEncoding.Utf16);
