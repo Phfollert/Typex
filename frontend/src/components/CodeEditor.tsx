@@ -18,33 +18,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
   const typecheckerDecorationsRef = useRef<string[]>([]);
   const viewZoneIdsRef = useRef<string[]>([]);
 
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
-    updateMarkers(diagnostics, monaco, editor.getModel());
-    updateTypecheckerDecorations(typecheckerDiagnostics, monaco, editor);
-  };
-
-  const handleEditorChange = (value: string | undefined) => {
-    if (value === undefined) return;
-    onChange(value);
-  };
-
-  // Ruff markers are owned by the parent (validated per file) and arrive via props.
-  useEffect(() => {
-    if (isReady && monacoRef.current && editorRef.current) {
-      updateMarkers(diagnostics, monacoRef.current, editorRef.current.getModel());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [diagnostics, isReady]);
-
-  // Keep typechecker decorations up to date
-  useEffect(() => {
-    if (monacoRef.current && editorRef.current) {
-      updateTypecheckerDecorations(typecheckerDiagnostics, monacoRef.current, editorRef.current);
-    }
-  }, [typecheckerDiagnostics]);
-
   const updateTypecheckerDecorations = (diags: EditorDiagnostic[], monaco: Monaco, editorInstance: editor.IStandaloneCodeEditor) => {
     // 1. Group diagnostics by line to assign depth dynamically
     const lineDepths: Record<number, Set<string>> = {}; // line -> Set of checkers
@@ -124,6 +97,32 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
 
     monaco.editor.setModelMarkers(model, "ruff", markers);
   };
+
+  const handleEditorDidMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+    updateMarkers(diagnostics, monaco, editor.getModel());
+    updateTypecheckerDecorations(typecheckerDiagnostics, monaco, editor);
+  };
+
+  const handleEditorChange = (value: string | undefined) => {
+    if (value === undefined) return;
+    onChange(value);
+  };
+
+  // Ruff markers are owned by the parent (validated per file) and arrive via props.
+  useEffect(() => {
+    if (isReady && monacoRef.current && editorRef.current) {
+      updateMarkers(diagnostics, monacoRef.current, editorRef.current.getModel());
+    }
+  }, [diagnostics, isReady]);
+
+  // Keep typechecker decorations up to date
+  useEffect(() => {
+    if (monacoRef.current && editorRef.current) {
+      updateTypecheckerDecorations(typecheckerDiagnostics, monacoRef.current, editorRef.current);
+    }
+  }, [typecheckerDiagnostics]);
 
   return (
     <div className="editor-wrapper">

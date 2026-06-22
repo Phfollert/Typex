@@ -20,9 +20,6 @@ export function useRuffValidator(initialVersion: string = 'py310') {
   // Use a ref to hold the workspace safely without causing async closure traps
   const workspaceRef = useRef<Workspace | null>(null);
 
-  // Incrementing token guarantees validateCode gets a new identity when the workspace is fully ready
-  const [readyToken, setReadyToken] = useState(0);
-
   useEffect(() => {
     let mounted = true;
 
@@ -49,7 +46,6 @@ export function useRuffValidator(initialVersion: string = 'py310') {
 
           workspaceRef.current = new Workspace(options, PositionEncoding.Utf16);
           setIsReady(true);
-          setReadyToken(t => t + 1); // Trigger consumers to re-validate
           setError(null);
         }
       } catch (err) {
@@ -91,7 +87,7 @@ export function useRuffValidator(initialVersion: string = 'py310') {
       // Wait to see if this handles the error gracefully
       return [];
     }
-  }, [isReady, readyToken]); // Include readyToken to force new identity on readiness
+  }, [isReady]);
 
   return {
     isReady,
