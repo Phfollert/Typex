@@ -1,18 +1,18 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Stage 1: build the frontend ----------
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-COPY frontend/package.json frontend/package-lock.json* ./
-# Using `npm install` (not `npm ci`) because the lock file is generated on macOS
-# and is missing linux optional native deps (e.g. @emnapi/*) — npm ci is strict
-# about cross-platform optionals; npm install resolves them at build time.
-RUN npm install --no-audit --no-fund
+# The bundled corepack predates pnpm 11's signing keys and rejects it.
+RUN npm install -g corepack@0.35.0 && corepack enable
+
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build
 # Output is /app/frontend/dist
 
 
