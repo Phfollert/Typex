@@ -4,6 +4,9 @@ import { editor } from 'monaco-editor';
 import { bgSetterClass } from '@/squiggle';
 import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
+const SHAPE_BY_SEVERITY = { error: 'wavy', warning: 'dotted', information: 'faint' } as const;
+const SEV_LABEL_BY_SEVERITY = { error: '✕ error', warning: '⚠ warning', information: 'ⓘ info' } as const;
+
 interface CodeEditorProps {
   code: string;
   onChange: (val: string) => void;
@@ -34,9 +37,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
 
     const newDecorations = diagsWithDepth
       .map(d => {
-        const shape = d.severity === 'error' ? 'wavy' : d.severity === 'warning' ? 'dotted' : 'faint';
+        const shape = SHAPE_BY_SEVERITY[d.severity];
         const setter = bgSetterClass(d.color, d.depth, shape);
-        const sevLabel = d.severity === 'error' ? '✕ error' : d.severity === 'warning' ? '⚠ warning' : 'ⓘ info';
+        const sevLabel = SEV_LABEL_BY_SEVERITY[d.severity];
         return {
           range: new monaco.Range(d.line, d.character, d.endLine || d.line, d.endColumn || (d.character + 10)),
           options: {

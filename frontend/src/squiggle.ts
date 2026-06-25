@@ -19,13 +19,12 @@ function styleSheet(): HTMLStyleElement {
 
 export function squiggleTile(color: string, shape: SquiggleShape): string {
   const stroke = encodeURIComponent(color);
-  const inner =
-    shape === 'wavy'
-      ? `<path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="${stroke}" fill="none" />`
-      : shape === 'dotted'
-        ? `<circle cx="1.5" cy="2" r="0.9" fill="${stroke}" /><circle cx="4.5" cy="2" r="0.9" fill="${stroke}" />`
-        : `<circle cx="1.5" cy="2" r="0.7" fill="${stroke}" fill-opacity="0.5" /><circle cx="4.5" cy="2" r="0.7" fill="${stroke}" fill-opacity="0.5" />`;
-  return `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6">${inner}</svg>')`;
+  const inner: Record<SquiggleShape, string> = {
+    wavy: `<path d="M0 3 Q 1.5 0 3 1.5 T 6 3" stroke="${stroke}" fill="none" />`,
+    dotted: `<circle cx="1.5" cy="2" r="0.9" fill="${stroke}" /><circle cx="4.5" cy="2" r="0.9" fill="${stroke}" />`,
+    faint: `<circle cx="1.5" cy="2" r="0.7" fill="${stroke}" fill-opacity="0.5" /><circle cx="4.5" cy="2" r="0.7" fill="${stroke}" fill-opacity="0.5" />`,
+  };
+  return `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" height="3" width="6">${inner[shape]}</svg>')`;
 }
 
 // Returns a class name that sets --bg-<depth> to this color's squiggle.

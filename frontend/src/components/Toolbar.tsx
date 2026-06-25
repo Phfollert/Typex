@@ -1,6 +1,12 @@
 import React from 'react';
 import type { CheckerInfo } from '@/types';
 
+function runStatusLabel(isSubmitting: boolean, isValid: boolean, runSummary: string | null): string {
+  if (isSubmitting) return 'Checking…';
+  if (!isValid) return 'Invalid syntax';
+  return runSummary ?? '';
+}
+
 interface ToolbarProps {
   checkers: CheckerInfo[];
   targetVersion: string;
@@ -42,13 +48,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   return (
     <div className="toolbar">
       <span className="run-status">
-        {isSubmitting
-          ? 'Checking…'
-          : !isValid
-            ? 'Invalid syntax'
-            : runSummary
-              ? runSummary
-              : ''}
+        {runStatusLabel(isSubmitting, isValid, runSummary)}
       </span>
 
       <div className="typecheckers-container">

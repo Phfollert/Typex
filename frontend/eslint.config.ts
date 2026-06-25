@@ -20,6 +20,7 @@ export default tseslint.config([
       globals: globals.browser,
     },
     rules: {
+      'no-nested-ternary': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
       'no-restricted-imports': [
         'error',
