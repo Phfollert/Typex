@@ -149,8 +149,6 @@ describe('assignLanes', () => {
   })
 
   it('puts a wide whole-line checker nearer the text than a narrow overlapping one', () => {
-    // The `None` case from the real example: mypy spans the def line; pyright
-    // flags one word inside it. mypy (wider) must render nearer the text.
     const placed = assignLanes([
       seg({ startColumn: 5, endColumn: 35, checker: 'mypy', color: '#ef4444' }),
       seg({ startColumn: 21, endColumn: 25, checker: 'pyright', color: '#3b82f6' }),
@@ -161,7 +159,6 @@ describe('assignLanes', () => {
   })
 
   it('collapses a checker with multiple findings to one lane and bounds lanes by checker count', () => {
-    // The `return self` case: 4 checkers on `self`, mypy also spanning the line.
     const placed = assignLanes([
       seg({ startColumn: 1, endColumn: 20, checker: 'mypy', color: '#ef4444' }),
       seg({ startColumn: 16, endColumn: 20, checker: 'mypy', color: '#ef4444' }),
@@ -172,7 +169,7 @@ describe('assignLanes', () => {
     const mypyLanes = [...new Set(placed.filter((p) => p.color === '#ef4444').map((p) => p.lane))]
     expect(mypyLanes).toHaveLength(1) // mypy's two findings share one lane
     const maxLane = Math.max(...placed.map((p) => p.lane))
-    expect(maxLane).toBe(4) // 4 distinct checkers -> 4 lanes (not 5)
+    expect(maxLane).toBe(4) // 4 distinct checkers -> 4 lanes
     expect(mypyLanes[0]).toBe(maxLane) // widest checker (mypy) is nearest the text
   })
 })
