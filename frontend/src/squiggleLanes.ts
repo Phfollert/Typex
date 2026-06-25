@@ -123,6 +123,36 @@ function widthOf(s: { startColumn: number; endColumn: number }): number {
   return s.endColumn - s.startColumn
 }
 
+export interface SquiggleLayout {
+  placements: PlacedSegment[]
+  maxLane: number
+}
+
+export function layoutSquiggles(
+  diagnostics: EditorDiagnostic[],
+  lineEndColumn: (line: number) => number,
+): SquiggleLayout {
+  const segments = expandToSegments(diagnostics, lineEndColumn)
+
+  const byLine = new Map<number, Segment[]>()
+  for (const s of segments) {
+    const list = byLine.get(s.line)
+    if (list) list.push(s)
+    else byLine.set(s.line, [s])
+  }
+
+  const placements: PlacedSegment[] = []
+  let maxLane = 0
+  for (const lineSegments of byLine.values()) {
+    for (const p of assignLanes(lineSegments)) {
+      placements.push(p)
+      if (p.lane > maxLane) maxLane = p.lane
+    }
+  }
+
+  return { placements, maxLane }
+}
+
 // Lays out the segments of a SINGLE line. Callers group by line first.
 export function assignLanes(segments: Segment[]): PlacedSegment[] {
   if (segments.length === 0) return []

@@ -143,3 +143,27 @@ describe('assignLanes', () => {
     expect(laneOf(forward, 4)).toBe(laneOf(reversed, 4))
   })
 })
+import { layoutSquiggles } from '@/squiggleLanes'
+
+describe('layoutSquiggles', () => {
+  it('lays out across lines and reports the global max lane', () => {
+    const { placements, maxLane } = layoutSquiggles(
+      [
+        diag({ line: 1, character: 1, endLine: 1, endColumn: 10, checker: 'pyright', color: '#00ff00' }),
+        diag({ line: 1, character: 4, endLine: 1, endColumn: 6, checker: 'mypy', color: '#ff0000' }),
+        diag({ line: 2, character: 1, endLine: 2, endColumn: 5, checker: 'mypy', color: '#ff0000' }),
+      ],
+      () => 21,
+    )
+    expect(maxLane).toBe(2) // line 1 stacks two; line 2 has one
+    expect(placements.filter((p) => p.line === 1)).toHaveLength(2)
+    expect(placements.filter((p) => p.line === 2)).toHaveLength(1)
+    expect(placements.find((p) => p.line === 2)!.lane).toBe(1)
+  })
+
+  it('returns maxLane 0 for no diagnostics', () => {
+    const { placements, maxLane } = layoutSquiggles([], () => 21)
+    expect(placements).toEqual([])
+    expect(maxLane).toBe(0)
+  })
+})
