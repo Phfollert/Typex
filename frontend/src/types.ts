@@ -12,6 +12,8 @@ export interface CheckerInfo {
 
 export type Severity = 'error' | 'warning' | 'information';
 
+export type SquiggleShape = 'wavy' | 'dotted' | 'faint';
+
 export interface CheckerDiagnostic {
   file: string;
   line: number;

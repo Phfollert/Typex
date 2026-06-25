@@ -1,6 +1,4 @@
-import type { EditorDiagnostic, Severity } from '@/types'
-
-export type Shape = 'wavy' | 'dotted' | 'faint'
+import type { EditorDiagnostic, Severity, SquiggleShape } from '@/types'
 
 export interface Segment {
   line: number
@@ -10,17 +8,17 @@ export interface Segment {
   checkerLabel: string
   color: string
   severity: Severity
-  shape: Shape
+  shape: SquiggleShape
   message: string
 }
 
-const SHAPE_BY_SEVERITY: Record<Severity, Shape> = {
+const SHAPE_BY_SEVERITY: Record<Severity, SquiggleShape> = {
   error: 'wavy',
   warning: 'dotted',
   information: 'faint',
 }
 
-export function shapeFor(severity: Severity): Shape {
+export function shapeFor(severity: Severity): SquiggleShape {
   return SHAPE_BY_SEVERITY[severity]
 }
 

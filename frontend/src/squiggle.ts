@@ -2,7 +2,7 @@
 // decorations. One <style> element holds every generated rule; classes are
 // cached so each (color, depth, shape) combination is injected once.
 
-export type SquiggleShape = 'wavy' | 'dotted' | 'faint';
+import type { SquiggleShape } from '@/types';
 
 let styleEl: HTMLStyleElement | null = null;
 const classCache = new Map<string, string>();
