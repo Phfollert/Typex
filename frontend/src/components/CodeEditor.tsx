@@ -1,11 +1,15 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
-import { editor } from 'monaco-editor';
+import type { editor } from 'monaco-editor';
 import { bgSetterClass, ensureLaneStyles } from '@/squiggle';
 import { layoutSquiggles, type HoverBlock } from '@/squiggleLanes';
 import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
 const SEV_LABEL_BY_SEVERITY = { error: '✕ error', warning: '⚠ warning', information: 'ⓘ info' } as const;
+
+const hoverMarkdown = (h: HoverBlock) => ({
+  value: `**${h.checkerLabel}** · ${SEV_LABEL_BY_SEVERITY[h.severity]}\n\n${h.message}`,
+});
 
 interface CodeEditorProps {
   code: string;
@@ -21,11 +25,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
   const typecheckerDecorationsRef = useRef<string[]>([]);
   const viewZoneIdsRef = useRef<string[]>([]);
 
-  const hoverMarkdown = (h: HoverBlock) => ({
-    value: `**${h.checkerLabel}** · ${SEV_LABEL_BY_SEVERITY[h.severity]}\n\n${h.message}`,
-  });
-
-  const updateTypecheckerDecorations = (
+  const updateTypecheckerDecorations = useCallback((
     diags: EditorDiagnostic[],
     monaco: Monaco,
     editorInstance: editor.IStandaloneCodeEditor,
@@ -75,9 +75,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
         }
       }
     });
-  };
+  }, []);
 
-  const updateMarkers = (diags: RuffDiagnostic[], monaco: Monaco, model: editor.ITextModel | null) => {
+  const updateMarkers = useCallback((diags: RuffDiagnostic[], monaco: Monaco, model: editor.ITextModel | null) => {
     if (!diags || !model) {
       if (model) {
         monaco.editor.setModelMarkers(model, "ruff", []);
@@ -95,7 +95,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     }));
 
     monaco.editor.setModelMarkers(model, "ruff", markers);
-  };
+  }, []);
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -114,14 +114,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     if (isReady && monacoRef.current && editorRef.current) {
       updateMarkers(diagnostics, monacoRef.current, editorRef.current.getModel());
     }
-  }, [diagnostics, isReady]);
+  }, [diagnostics, isReady, updateMarkers]);
 
   // Keep typechecker decorations up to date
   useEffect(() => {
     if (monacoRef.current && editorRef.current) {
       updateTypecheckerDecorations(typecheckerDiagnostics, monacoRef.current, editorRef.current);
     }
-  }, [typecheckerDiagnostics]);
+  }, [typecheckerDiagnostics, updateTypecheckerDecorations]);
 
   return (
     <div className="editor-wrapper">
