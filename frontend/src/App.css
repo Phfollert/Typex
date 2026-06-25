@@ -421,5 +421,3 @@
 .console-line.success { color: var(--success); }
 .console-line.error { color: var(--error); }
 .console-line.info { color: var(--accent-primary); }
-
-
