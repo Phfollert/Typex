@@ -1,10 +1,10 @@
 import React, { useRef, useEffect } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import { editor } from 'monaco-editor';
-import { bgSetterClass } from '@/squiggle';
+import { bgSetterClass, ensureLaneStyles } from '@/squiggle';
+import { layoutSquiggles, type HoverBlock } from '@/squiggleLanes';
 import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
-const SHAPE_BY_SEVERITY = { error: 'wavy', warning: 'dotted', information: 'faint' } as const;
 const SEV_LABEL_BY_SEVERITY = { error: '✕ error', warning: '⚠ warning', information: 'ⓘ info' } as const;
 
 interface CodeEditorProps {
@@ -21,63 +21,59 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
   const typecheckerDecorationsRef = useRef<string[]>([]);
   const viewZoneIdsRef = useRef<string[]>([]);
 
-  const updateTypecheckerDecorations = (diags: EditorDiagnostic[], monaco: Monaco, editorInstance: editor.IStandaloneCodeEditor) => {
-    // 1. Group diagnostics by line to assign depth dynamically
-    const lineDepths: Record<number, Set<string>> = {}; // line -> Set of checkers
-    const diagsWithDepth = (diags || []).map(d => {
-      if (!lineDepths[d.line]) {
-        lineDepths[d.line] = new Set();
-      }
-      lineDepths[d.line].add(d.checker);
+  const hoverMarkdown = (h: HoverBlock) => ({
+    value: `**${h.checkerLabel}** · ${SEV_LABEL_BY_SEVERITY[h.severity]}\n\n${h.message}`,
+  });
 
-      // Determine the depth (1-indexed) based on the order of checkers on this line
-      const depth = Array.from(lineDepths[d.line]).indexOf(d.checker) + 1;
-      return { ...d, depth };
-    });
+  const updateTypecheckerDecorations = (
+    diags: EditorDiagnostic[],
+    monaco: Monaco,
+    editorInstance: editor.IStandaloneCodeEditor,
+  ) => {
+    const model = editorInstance.getModel();
+    if (!model) return;
 
-    const newDecorations = diagsWithDepth
-      .map(d => {
-        const shape = SHAPE_BY_SEVERITY[d.severity];
-        const setter = bgSetterClass(d.color, d.depth, shape);
-        const sevLabel = SEV_LABEL_BY_SEVERITY[d.severity];
-        return {
-          range: new monaco.Range(d.line, d.character, d.endLine || d.line, d.endColumn || (d.character + 10)),
-          options: {
-            isWholeLine: false,
-            inlineClassName: `squiggly-base squiggly-depth-${d.depth} ${setter}`,
-            hoverMessage: { value: `**${d.checkerLabel ?? d.checker}** · ${sevLabel}\n\n${d.message}` }
-          }
-        };
-      });
+    const { placements, maxLane } = layoutSquiggles(diags || [], (line) =>
+      model.getLineMaxColumn(line),
+    );
+    ensureLaneStyles(Math.max(maxLane, 1));
 
-    typecheckerDecorationsRef.current = editorInstance.deltaDecorations(typecheckerDecorationsRef.current, newDecorations);
+    const newDecorations = placements.map((p) => ({
+      range: new monaco.Range(p.line, p.startColumn, p.line, p.endColumn),
+      options: {
+        isWholeLine: false,
+        inlineClassName: `squiggly-base squiggly-depth-${p.lane} ${bgSetterClass(p.color, p.lane, p.shape)}`,
+        hoverMessage: p.hovers.map(hoverMarkdown),
+      },
+    }));
 
-    // Use Monaco View Zones to reactively push the next line down
-    editorInstance.changeViewZones((accessor) => {
-      // Remove old zones
-      viewZoneIdsRef.current.forEach(id => accessor.removeZone(id));
+    typecheckerDecorationsRef.current = editorInstance.deltaDecorations(
+      typecheckerDecorationsRef.current,
+      newDecorations,
+    );
+
+    const maxLaneByLine = new Map<number, number>();
+    for (const p of placements) {
+      maxLaneByLine.set(p.line, Math.max(maxLaneByLine.get(p.line) ?? 0, p.lane));
+    }
+
+    editorInstance.changeViewZones((accessor: editor.IViewZoneChangeAccessor) => {
+      viewZoneIdsRef.current.forEach((id) => accessor.removeZone(id));
       viewZoneIdsRef.current = [];
 
-      // Add new zones for lines that need extra space
-      Object.entries(lineDepths).forEach(([lineStr, checkers]) => {
-        const line = parseInt(lineStr, 10);
-        const maxDepth = checkers.size;
-        const height = maxDepth * 3; // 3px per depth level
-
-        // If height > 6, it overflows the natural line gap, requiring extra space
+      for (const [line, lane] of maxLaneByLine) {
+        const height = lane * 3;
         if (height > 6) {
-          const extraSpace = height - 4; // Buffer to prevent overlap
-          const domNode = document.createElement('div');
-
+          const extraSpace = height - 4;
           const id = accessor.addZone({
             afterLineNumber: line,
             heightInPx: extraSpace,
-            domNode: domNode,
-            suppressMouseDown: true
+            domNode: document.createElement('div'),
+            suppressMouseDown: true,
           });
           viewZoneIdsRef.current.push(id);
         }
-      });
+      }
     });
   };
 

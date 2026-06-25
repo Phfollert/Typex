@@ -422,23 +422,4 @@
 .console-line.error { color: var(--error); }
 .console-line.info { color: var(--accent-primary); }
 
-/* Custom Squiggly Decorations for Monaco */
-.squiggly-base {
-  --bg-1: none;
-  --bg-2: none;
-  --bg-3: none;
-  --bg-4: none;
-
-  background-image: var(--bg-1), var(--bg-2), var(--bg-3), var(--bg-4);
-  background-position: left bottom, left calc(100% - 3px), left calc(100% - 6px), left calc(100% - 9px);
-  background-repeat: repeat-x, repeat-x, repeat-x, repeat-x;
-  background-size: auto 3px, auto 3px, auto 3px, auto 3px;
-}
-
-/* Depths */
-.squiggly-depth-1 { padding-bottom: 3px; }
-.squiggly-depth-2 { padding-bottom: 6px; }
-.squiggly-depth-3 { padding-bottom: 9px; }
-.squiggly-depth-4 { padding-bottom: 12px; }
-
 

@@ -79,8 +79,6 @@ export interface PlacedSegment {
   hovers: HoverBlock[]
 }
 
-const SEVERITY_RANK: Record<Severity, number> = { error: 0, warning: 1, information: 2 }
-
 // Half-open column ranges overlap when each starts before the other ends.
 function overlaps(a: { startColumn: number; endColumn: number }, b: { startColumn: number; endColumn: number }): boolean {
   return a.startColumn < b.endColumn && b.startColumn < a.endColumn
@@ -123,6 +121,19 @@ function widthOf(s: { startColumn: number; endColumn: number }): number {
   return s.endColumn - s.startColumn
 }
 
+const SEVERITY_RANK: Record<Severity, number> = { error: 0, warning: 1, information: 2 }
+
+// A checker draws one shape across its lane: the most severe among its findings
+// (error > warning > information). This also avoids two findings of the same
+// checker fighting over the lane's single background slot.
+function mostSevereShape(segs: MergedSegment[]): SquiggleShape {
+  let best = segs[0]
+  for (const s of segs) {
+    if (SEVERITY_RANK[s.severity] < SEVERITY_RANK[best.severity]) best = s
+  }
+  return best.shape
+}
+
 export interface SquiggleLayout {
   placements: PlacedSegment[]
   maxLane: number
@@ -154,33 +165,55 @@ export function layoutSquiggles(
 }
 
 // Lays out the segments of a SINGLE line. Callers group by line first.
+//
+// Each checker occupies a single lane, so its own overlapping findings share
+// that lane instead of stacking against each other. Lanes are packed (two
+// checkers whose findings never overlap can share a lane), and the widest
+// checker is given the highest lane number. The squiggle CSS stacks higher lane
+// numbers nearer the text, so the widest checker hugs the text and narrower
+// checkers tuck below it.
 export function assignLanes(segments: Segment[]): PlacedSegment[] {
   if (segments.length === 0) return []
   const line = segments[0].line
-
   const merged = dedup(segments)
-  merged.sort(
-    (a, b) =>
-      widthOf(b) - widthOf(a) ||
-      a.startColumn - b.startColumn ||
-      a.checker.localeCompare(b.checker) ||
-      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
-  )
+
+  const byChecker = new Map<string, MergedSegment[]>()
+  for (const m of merged) {
+    const group = byChecker.get(m.checker)
+    if (group) group.push(m)
+    else byChecker.set(m.checker, [m])
+  }
+
+  const groups = [...byChecker.entries()].map(([checker, segs]) => ({
+    checker,
+    segs,
+    maxWidth: Math.max(...segs.map(widthOf)),
+    shape: mostSevereShape(segs),
+  }))
+
+  // Narrowest checker first takes the lowest (bottom) lane; the widest ends up
+  // in the highest lane, which the CSS renders nearest the text.
+  groups.sort((a, b) => a.maxWidth - b.maxWidth || a.checker.localeCompare(b.checker))
 
   const placed: PlacedSegment[] = []
-  for (const m of merged) {
-    const taken = new Set(placed.filter((p) => overlaps(p, m)).map((p) => p.lane))
+  for (const group of groups) {
+    const taken = new Set<number>()
+    for (const p of placed) {
+      if (group.segs.some((s) => overlaps(p, s))) taken.add(p.lane)
+    }
     let lane = 1
     while (taken.has(lane)) lane++
-    placed.push({
-      line,
-      startColumn: m.startColumn,
-      endColumn: m.endColumn,
-      color: m.color,
-      shape: m.shape,
-      lane,
-      hovers: m.hovers,
-    })
+    for (const s of group.segs) {
+      placed.push({
+        line,
+        startColumn: s.startColumn,
+        endColumn: s.endColumn,
+        color: s.color,
+        shape: group.shape,
+        lane,
+        hovers: s.hovers,
+      })
+    }
   }
   return placed
 }

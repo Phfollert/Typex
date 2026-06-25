@@ -7,6 +7,8 @@ import type { SquiggleShape } from '@/types';
 let styleEl: HTMLStyleElement | null = null;
 const classCache = new Map<string, string>();
 let counter = 0;
+let baseNode: Text | null = null;
+let laneMax = 0;
 
 function styleSheet(): HTMLStyleElement {
   if (!styleEl) {
@@ -38,4 +40,38 @@ export function bgSetterClass(color: string, depth: number, shape: SquiggleShape
   );
   classCache.set(key, cls);
   return cls;
+}
+
+// Generates the `.squiggly-base` background-layer stack and `.squiggly-depth-N`
+// padding rules for N lanes, growing on demand. Where lanes stack on the same
+// text, lane 1 is the bottom-most (farthest from the text) and higher lanes
+// climb toward it.
+export function ensureLaneStyles(maxLane: number): void {
+  if (maxLane <= laneMax) return;
+  const sheet = styleSheet();
+
+  if (!baseNode) {
+    baseNode = document.createTextNode('');
+    sheet.appendChild(baseNode);
+  }
+
+  const layers = (fn: (i: number) => string) =>
+    Array.from({ length: maxLane }, (_, i) => fn(i)).join(', ');
+
+  const vars = Array.from({ length: maxLane }, (_, i) => `  --bg-${i + 1}: none;`).join('\n');
+  baseNode.data = `.squiggly-base {
+${vars}
+  background-image: ${layers((i) => `var(--bg-${i + 1})`)};
+  background-position: ${layers((i) => `left calc(100% - ${i * 3}px)`)};
+  background-repeat: ${layers(() => 'repeat-x')};
+  background-size: ${layers(() => 'auto 3px')};
+}`;
+
+  for (let n = laneMax + 1; n <= maxLane; n++) {
+    sheet.appendChild(
+      document.createTextNode(`.squiggly-depth-${n} { padding-bottom: ${n * 3}px; }`)
+    );
+  }
+
+  laneMax = maxLane;
 }

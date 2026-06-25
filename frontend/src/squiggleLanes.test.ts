@@ -87,13 +87,13 @@ describe('assignLanes', () => {
     expect(placed.every((p) => p.lane === 1)).toBe(true)
   })
 
-  it('keeps the wider finding in lane 1 and stacks the contained one below', () => {
+  it('gives the wider checker the higher lane (CSS renders it nearer the text)', () => {
     const placed = assignLanes([
       seg({ startColumn: 4, endColumn: 6, checker: 'mypy', color: '#ff0000' }),
       seg({ startColumn: 1, endColumn: 10, checker: 'pyright', color: '#00ff00' }),
     ])
-    expect(laneOf(placed, 1)).toBe(1) // pyright 1-10 (wider) hugs the text
-    expect(laneOf(placed, 4)).toBe(2) // mypy 4-6 below
+    expect(laneOf(placed, 1)).toBe(2) // pyright 1-10 (wider) -> higher lane, nearer text
+    expect(laneOf(placed, 4)).toBe(1) // mypy 4-6 (narrower) -> lower lane, below
   })
 
   it('breaks an identical-span tie by checker id, deterministically', () => {
@@ -105,13 +105,18 @@ describe('assignLanes', () => {
     expect(placed.find((p) => p.color === '#00ff00')!.lane).toBe(2)
   })
 
-  it('stacks an error over a warning of the same checker (different shape)', () => {
+  it('keeps one checker on a single lane and draws it with the most-severe shape', () => {
     const placed = assignLanes([
-      seg({ startColumn: 2, endColumn: 5, severity: 'warning', shape: 'dotted' }),
-      seg({ startColumn: 1, endColumn: 10, severity: 'error', shape: 'wavy' }),
+      seg({ startColumn: 2, endColumn: 5, severity: 'warning', shape: 'dotted', message: 'warn' }),
+      seg({ startColumn: 1, endColumn: 10, severity: 'error', shape: 'wavy', message: 'err' }),
     ])
-    expect(laneOf(placed, 1)).toBe(1) // wider error
-    expect(laneOf(placed, 2)).toBe(2) // narrower warning
+    // Same checker (mypy) -> one lane; its own findings don't stack against each other.
+    expect(placed.every((p) => p.lane === 1)).toBe(true)
+    // Most severe (error -> wavy) wins for the whole checker, so both segments share one shape.
+    expect(placed.every((p) => p.shape === 'wavy')).toBe(true)
+    // Both findings remain reachable on hover.
+    const messages = placed.flatMap((p) => p.hovers.map((h) => h.message)).sort()
+    expect(messages).toEqual(['err', 'warn'])
   })
 
   it('dedups identical segments into one lane with one hover block each', () => {
@@ -141,6 +146,34 @@ describe('assignLanes', () => {
     const reversed = assignLanes([b, a])
     expect(laneOf(forward, 1)).toBe(laneOf(reversed, 1))
     expect(laneOf(forward, 4)).toBe(laneOf(reversed, 4))
+  })
+
+  it('puts a wide whole-line checker nearer the text than a narrow overlapping one', () => {
+    // The `None` case from the real example: mypy spans the def line; pyright
+    // flags one word inside it. mypy (wider) must render nearer the text.
+    const placed = assignLanes([
+      seg({ startColumn: 5, endColumn: 35, checker: 'mypy', color: '#ef4444' }),
+      seg({ startColumn: 21, endColumn: 25, checker: 'pyright', color: '#3b82f6' }),
+    ])
+    const mypyLane = placed.find((p) => p.color === '#ef4444')!.lane
+    const pyrightLane = placed.find((p) => p.color === '#3b82f6')!.lane
+    expect(mypyLane).toBeGreaterThan(pyrightLane)
+  })
+
+  it('collapses a checker with multiple findings to one lane and bounds lanes by checker count', () => {
+    // The `return self` case: 4 checkers on `self`, mypy also spanning the line.
+    const placed = assignLanes([
+      seg({ startColumn: 1, endColumn: 20, checker: 'mypy', color: '#ef4444' }),
+      seg({ startColumn: 16, endColumn: 20, checker: 'mypy', color: '#ef4444' }),
+      seg({ startColumn: 16, endColumn: 20, checker: 'pyright', color: '#3b82f6' }),
+      seg({ startColumn: 16, endColumn: 20, checker: 'ty', color: '#10b981' }),
+      seg({ startColumn: 16, endColumn: 20, checker: 'pyrefly', color: '#f59e0b' }),
+    ])
+    const mypyLanes = [...new Set(placed.filter((p) => p.color === '#ef4444').map((p) => p.lane))]
+    expect(mypyLanes).toHaveLength(1) // mypy's two findings share one lane
+    const maxLane = Math.max(...placed.map((p) => p.lane))
+    expect(maxLane).toBe(4) // 4 distinct checkers -> 4 lanes (not 5)
+    expect(mypyLanes[0]).toBe(maxLane) // widest checker (mypy) is nearest the text
   })
 })
 import { layoutSquiggles } from '@/squiggleLanes'
