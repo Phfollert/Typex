@@ -23,7 +23,7 @@ VERSION_GATED_SNIPPET = "from typing import Self\n\n\nclass C:\n    def clone(se
 def _run(
     spec: CheckerSpec, workspace_dir: str, python_version: str = "3.12"
 ) -> list[Diagnostic]:
-    adapter = ADAPTERS[spec.checker]
+    adapter = ADAPTERS[spec.adapter]
     out = subprocess.run(
         adapter.check_command(spec.executable, workspace_dir, python_version),
         capture_output=True,

@@ -14,24 +14,24 @@ class PyrightAdapter(Adapter):
     name = "pyright"
 
     def check_command(
-        self, executable: str, target: str, python_version: str
+        self, executable: str, workspace: str, target_python: str
     ) -> list[str]:
         return [
             executable,
             "--outputjson",
             "--pythonversion",
-            python_version,
-            target,
+            target_python,
+            workspace,
         ]
 
-    def normalize(self, stdout: str, workspace_dir: str) -> list[Diagnostic]:
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
         data = json.loads(stdout)
         diagnostics: list[Diagnostic] = []
         for d in data.get("generalDiagnostics", []):
             rng = d["range"]
             diagnostics.append(
                 Diagnostic(
-                    file=relpath(d["file"], workspace_dir),
+                    file=relpath(d["file"], workspace),
                     line=rng["start"]["line"] + 1,
                     column=rng["start"]["character"] + 1,
                     end_line=rng["end"]["line"] + 1,

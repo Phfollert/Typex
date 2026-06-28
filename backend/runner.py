@@ -36,7 +36,7 @@ async def run_checker(
     adapter: Adapter | None = None,
 ) -> CheckerResult:
     if adapter is None:
-        adapter = ADAPTERS[spec.checker]
+        adapter = ADAPTERS[spec.adapter]
     start = time.monotonic()
     with tempfile.TemporaryDirectory() as workspace:
         _write_workspace(files, workspace)

@@ -12,6 +12,7 @@ FAKE_SPEC = CheckerSpec(
     version="1.0",
     executable="/nonexistent/fake",
     color="#000000",
+    adapter="fake",
 )
 
 

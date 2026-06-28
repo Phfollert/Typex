@@ -16,7 +16,7 @@ class TyAdapter(Adapter):
     name = "ty"
 
     def check_command(
-        self, executable: str, target: str, python_version: str
+        self, executable: str, workspace: str, target_python: str
     ) -> list[str]:
         return [
             executable,
@@ -24,11 +24,11 @@ class TyAdapter(Adapter):
             "--output-format",
             "gitlab",
             "--python-version",
-            python_version,
-            target,
+            target_python,
+            workspace,
         ]
 
-    def normalize(self, stdout: str, workspace_dir: str) -> list[Diagnostic]:
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
         data = json.loads(stdout)
         diagnostics: list[Diagnostic] = []
         for d in data:
@@ -41,7 +41,7 @@ class TyAdapter(Adapter):
                 message = message[len(check_name) + 2 :]
             diagnostics.append(
                 Diagnostic(
-                    file=relpath(d["location"]["path"], workspace_dir),
+                    file=relpath(d["location"]["path"], workspace),
                     line=pos["begin"]["line"],
                     column=pos["begin"]["column"],
                     end_line=pos["end"]["line"],

@@ -23,11 +23,11 @@ class Adapter(ABC):
 
     @abstractmethod
     def check_command(
-        self, executable: str, target: str, python_version: str
+        self, executable: str, workspace: str, target_python: str
     ) -> list[str]:
-        """Full argv to typecheck `target` at `python_version`, using the given
-        checker executable (an absolute path from the registry)."""
+        """Full argv to typecheck `workspace` at `target_python`, using
+        `executable` (an absolute path from the registry)."""
 
     @abstractmethod
-    def normalize(self, stdout: str, workspace_dir: str) -> list[Diagnostic]:
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
         """Parse the checker's stdout into normalized diagnostics."""

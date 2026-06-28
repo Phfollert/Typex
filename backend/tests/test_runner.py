@@ -17,11 +17,11 @@ class _FakeAdapter(Adapter):
     name = "fake"
 
     def check_command(
-        self, executable: str, target: str, python_version: str
+        self, executable: str, workspace: str, target_python: str
     ) -> list[str]:
         return [executable]
 
-    def normalize(self, stdout: str, workspace_dir: str) -> list[Diagnostic]:
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
         return []
 
 
@@ -45,6 +45,7 @@ def test_run_checker_reports_error_for_missing_executable() -> None:
         version="0",
         executable="/nonexistent/checker",
         color="#000000",
+        adapter="fake",
     )
     result = asyncio.run(
         run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter())
