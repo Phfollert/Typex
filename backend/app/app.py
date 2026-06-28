@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,11 +20,11 @@ from service import CheckerInfo, CheckerService
 from typechecker import ConcurrentTypechecking, Typechecker
 
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
+STATIC_DIR = Path("static")
 
-app = FastAPI()
+router = APIRouter()
 
 
-@app.middleware("http")
 async def limit_request_size(
     request: Request, call_next: RequestResponseEndpoint
 ) -> Response:
@@ -56,12 +56,12 @@ def get_checker_service() -> CheckerService:
 ServiceDep = Annotated[CheckerService, Depends(get_checker_service)]
 
 
-@app.get("/api/checkers")
+@router.get("/api/checkers")
 async def list_checkers(service: ServiceDep) -> list[CheckerInfo]:
     return service.list_checkers()
 
 
-@app.post("/api/checkers/{checker_id}/typecheck")
+@router.post("/api/checkers/{checker_id}/typecheck")
 async def typecheck(
     checker_id: str, request: TypecheckRequest, service: ServiceDep
 ) -> CheckerResultModel:
@@ -104,7 +104,7 @@ class TypecheckDebugResponse(BaseModel):
     results: dict[Typechecker, TypecheckDebugResult | Literal["An error occurred"]]
 
 
-@app.get("/api/example-debug")
+@router.get("/api/example-debug")
 async def example_debug() -> TypecheckDebugResponse:
     program = """import requests
 def greet(name: str) -> int:
@@ -113,7 +113,7 @@ def greet(name: str) -> int:
     return await typecheck_debug(TypecheckDebugRequest(code_snippet=program))
 
 
-@app.post("/api/typecheck-debug", response_model=TypecheckDebugResponse)
+@router.post("/api/typecheck-debug", response_model=TypecheckDebugResponse)
 async def typecheck_debug(request: TypecheckDebugRequest) -> TypecheckDebugResponse:
     checker = ConcurrentTypechecking(
         request.code_snippet,
@@ -148,19 +148,25 @@ async def typecheck_debug(request: TypecheckDebugRequest) -> TypecheckDebugRespo
     )
 
 
-STATIC_DIR = Path("static")
-
-app.mount(
-    "/assets",
-    StaticFiles(directory=STATIC_DIR / "assets", check_dir=False),
-    name="assets",
-)
-
-
-@app.get("/{full_path:path}")
 async def spa_fallback(full_path: str) -> FileResponse:
     candidate = STATIC_DIR / full_path
     if candidate.is_file():
         return FileResponse(candidate)
     return FileResponse(STATIC_DIR / "index.html")
 
+
+def create_app() -> FastAPI:
+    app = FastAPI()
+    app.middleware("http")(limit_request_size)
+    app.include_router(router)
+    app.mount(
+        "/assets",
+        StaticFiles(directory=STATIC_DIR / "assets", check_dir=False),
+        name="assets",
+    )
+    # Registered last so the SPA catch-all never shadows the API routes.
+    app.get("/{full_path:path}")(spa_fallback)
+    return app
+
+
+app = create_app()

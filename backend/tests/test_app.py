@@ -1,7 +1,8 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.app import app, get_checker_service
+from app.app import create_app, get_checker_service
 from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
 from runner import (
@@ -10,7 +11,7 @@ from runner import (
     CheckerTimeoutError,
     WorkspacePathError,
 )
-from service import CheckerService
+from service import CheckerService, RunFn
 
 FAKE_SPEC = CheckerSpec(
     id="fake-1.0",
@@ -51,11 +52,25 @@ def _fake_service() -> CheckerService:
     return CheckerService(specs=[FAKE_SPEC], run_fn=_fake_run)
 
 
-app.dependency_overrides[get_checker_service] = _fake_service
-client = TestClient(app)
+@pytest.fixture
+def app_() -> FastAPI:
+    test_app = create_app()
+    test_app.dependency_overrides[get_checker_service] = _fake_service
+    return test_app
 
 
-def test_list_checkers() -> None:
+@pytest.fixture
+def client(app_: FastAPI) -> TestClient:
+    return TestClient(app_)
+
+
+def _override_run(app_: FastAPI, run_fn: RunFn) -> None:
+    app_.dependency_overrides[get_checker_service] = lambda: CheckerService(
+        specs=[FAKE_SPEC], run_fn=run_fn
+    )
+
+
+def test_list_checkers(client: TestClient) -> None:
     resp = client.get("/api/checkers")
     assert resp.status_code == 200
     assert resp.json() == [
@@ -69,7 +84,7 @@ def test_list_checkers() -> None:
     ]
 
 
-def test_typecheck_unknown_id_returns_404() -> None:
+def test_typecheck_unknown_id_returns_404(client: TestClient) -> None:
     resp = client.post(
         "/api/checkers/nope/typecheck",
         json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
@@ -77,7 +92,7 @@ def test_typecheck_unknown_id_returns_404() -> None:
     assert resp.status_code == 404
 
 
-def test_typecheck_known_id_returns_result() -> None:
+def test_typecheck_known_id_returns_result(client: TestClient) -> None:
     resp = client.post(
         "/api/checkers/fake-1.0/typecheck",
         json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
@@ -89,91 +104,75 @@ def test_typecheck_known_id_returns_result() -> None:
     assert data["diagnostics"][0]["message"] == "boom"
 
 
-def test_typecheck_path_escape_returns_400_without_leaking() -> None:
+def test_typecheck_path_escape_returns_400_without_leaking(
+    app_: FastAPI, client: TestClient
+) -> None:
     async def _raising_run(
         spec: CheckerSpec, files: dict[str, str], python_version: str
     ) -> CheckerResult:
         raise WorkspacePathError("path escapes workspace: '../escape.py'")
 
-    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
-        specs=[FAKE_SPEC], run_fn=_raising_run
+    _override_run(app_, _raising_run)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"../escape.py": "x = 1\n"}, "python_version": "3.12"},
     )
-    try:
-        resp = client.post(
-            "/api/checkers/fake-1.0/typecheck",
-            json={"files": {"../escape.py": "x = 1\n"}, "python_version": "3.12"},
-        )
-    finally:
-        app.dependency_overrides[get_checker_service] = _fake_service
 
     assert resp.status_code == 400
     assert "escape.py" not in resp.text
     assert "escapes workspace" not in resp.text
 
 
-def test_typecheck_unhandled_error_returns_500_without_leaking() -> None:
+def test_typecheck_unhandled_error_returns_500_without_leaking(app_: FastAPI) -> None:
     async def _boom(
         spec: CheckerSpec, files: dict[str, str], python_version: str
     ) -> CheckerResult:
         raise RuntimeError("secret internal detail")
 
-    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
-        specs=[FAKE_SPEC], run_fn=_boom
+    _override_run(app_, _boom)
+    safe_client = TestClient(app_, raise_server_exceptions=False)
+    resp = safe_client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
-    safe_client = TestClient(app, raise_server_exceptions=False)
-    try:
-        resp = safe_client.post(
-            "/api/checkers/fake-1.0/typecheck",
-            json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
-        )
-    finally:
-        app.dependency_overrides[get_checker_service] = _fake_service
 
     assert resp.status_code == 500
     assert "secret internal detail" not in resp.text
 
 
-def test_typecheck_timeout_returns_500() -> None:
+def test_typecheck_timeout_returns_500(app_: FastAPI, client: TestClient) -> None:
     async def _slow(
         spec: CheckerSpec, files: dict[str, str], python_version: str
     ) -> CheckerResult:
         raise CheckerTimeoutError("fake-1.0 exceeded 20s")
 
-    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
-        specs=[FAKE_SPEC], run_fn=_slow
+    _override_run(app_, _slow)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
-    try:
-        resp = client.post(
-            "/api/checkers/fake-1.0/typecheck",
-            json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
-        )
-    finally:
-        app.dependency_overrides[get_checker_service] = _fake_service
 
     assert resp.status_code == 500
 
 
-def test_typecheck_output_limit_returns_500() -> None:
+def test_typecheck_output_limit_returns_500(app_: FastAPI, client: TestClient) -> None:
     async def _flood(
         spec: CheckerSpec, files: dict[str, str], python_version: str
     ) -> CheckerResult:
         raise CheckerOutputLimitError("fake-1.0 exceeded 1048576 bytes of output")
 
-    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
-        specs=[FAKE_SPEC], run_fn=_flood
+    _override_run(app_, _flood)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
-    try:
-        resp = client.post(
-            "/api/checkers/fake-1.0/typecheck",
-            json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
-        )
-    finally:
-        app.dependency_overrides[get_checker_service] = _fake_service
 
     assert resp.status_code == 500
 
 
-def test_request_over_size_limit_returns_413(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_request_over_size_limit_returns_413(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr("app.app.MAX_REQUEST_BYTES", 100)
     resp = client.post(
         "/api/checkers/fake-1.0/typecheck",
