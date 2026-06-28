@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.app import app, get_checker_service
 from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
-from runner import CheckerResult
+from runner import CheckerResult, WorkspacePathError
 from service import CheckerService
 
 FAKE_SPEC = CheckerSpec(
@@ -37,7 +37,6 @@ async def _fake_run(
         ],
         raw_stdout="",
         raw_stderr="",
-        error=None,
         duration=0.01,
     )
 
@@ -51,16 +50,22 @@ client = TestClient(app)
 
 
 def test_list_checkers() -> None:
-    resp = client.get("/checkers")
+    resp = client.get("/api/checkers")
     assert resp.status_code == 200
     assert resp.json() == [
-        {"id": "fake-1.0", "checker": "fake", "version": "1.0", "label": "fake 1.0"}
+        {
+            "id": "fake-1.0",
+            "checker": "fake",
+            "version": "1.0",
+            "label": "fake 1.0",
+            "color": "#000000",
+        }
     ]
 
 
 def test_typecheck_unknown_id_returns_404() -> None:
     resp = client.post(
-        "/checkers/nope/typecheck",
+        "/api/checkers/nope/typecheck",
         json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
     assert resp.status_code == 404
@@ -68,7 +73,7 @@ def test_typecheck_unknown_id_returns_404() -> None:
 
 def test_typecheck_known_id_returns_result() -> None:
     resp = client.post(
-        "/checkers/fake-1.0/typecheck",
+        "/api/checkers/fake-1.0/typecheck",
         json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
     assert resp.status_code == 200
@@ -76,3 +81,47 @@ def test_typecheck_known_id_returns_result() -> None:
     assert data["checker"] == "fake"
     assert data["version"] == "1.0"
     assert data["diagnostics"][0]["message"] == "boom"
+
+
+def test_typecheck_path_escape_returns_400_without_leaking() -> None:
+    async def _raising_run(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise WorkspacePathError("path escapes workspace: '../escape.py'")
+
+    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
+        specs=[FAKE_SPEC], run_fn=_raising_run
+    )
+    try:
+        resp = client.post(
+            "/api/checkers/fake-1.0/typecheck",
+            json={"files": {"../escape.py": "x = 1\n"}, "python_version": "3.12"},
+        )
+    finally:
+        app.dependency_overrides[get_checker_service] = _fake_service
+
+    assert resp.status_code == 400
+    assert "escape.py" not in resp.text
+    assert "escapes workspace" not in resp.text
+
+
+def test_typecheck_unhandled_error_returns_500_without_leaking() -> None:
+    async def _boom(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise RuntimeError("secret internal detail")
+
+    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
+        specs=[FAKE_SPEC], run_fn=_boom
+    )
+    safe_client = TestClient(app, raise_server_exceptions=False)
+    try:
+        resp = safe_client.post(
+            "/api/checkers/fake-1.0/typecheck",
+            json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+        )
+    finally:
+        app.dependency_overrides[get_checker_service] = _fake_service
+
+    assert resp.status_code == 500
+    assert "secret internal detail" not in resp.text

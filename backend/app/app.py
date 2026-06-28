@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from diagnostics import Diagnostic
 from registry import CHECKERS
-from runner import run_checker
+from runner import WorkspacePathError, run_checker
 from service import CheckerInfo, CheckerService
 from typechecker import ConcurrentTypechecking, Typechecker
 
@@ -28,7 +28,6 @@ class CheckerResultModel(BaseModel):
     diagnostics: list[Diagnostic]
     raw_stdout: str
     raw_stderr: str
-    error: str | None
     duration: float
 
 
@@ -51,7 +50,10 @@ async def typecheck(
     spec = service.get(checker_id)
     if spec is None:
         raise HTTPException(status_code=404, detail=f"unknown checker id: {checker_id}")
-    result = await service.run(spec, request.files, request.python_version)
+    try:
+        result = await service.run(spec, request.files, request.python_version)
+    except WorkspacePathError:
+        raise HTTPException(status_code=400, detail="invalid file path in request")
     return CheckerResultModel(
         checker=result.checker,
         version=result.version,
@@ -59,7 +61,6 @@ async def typecheck(
         diagnostics=result.diagnostics,
         raw_stdout=result.raw_stdout,
         raw_stderr=result.raw_stderr,
-        error=result.error,
         duration=result.duration,
     )
 
