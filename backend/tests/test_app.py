@@ -1,9 +1,10 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.app import app, get_checker_service
 from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
-from runner import CheckerResult, WorkspacePathError
+from runner import CheckerResult, CheckerTimeoutError, WorkspacePathError
 from service import CheckerService
 
 FAKE_SPEC = CheckerSpec(
@@ -125,3 +126,32 @@ def test_typecheck_unhandled_error_returns_500_without_leaking() -> None:
 
     assert resp.status_code == 500
     assert "secret internal detail" not in resp.text
+
+
+def test_typecheck_timeout_returns_500() -> None:
+    async def _slow(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise CheckerTimeoutError("fake-1.0 exceeded 20s")
+
+    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
+        specs=[FAKE_SPEC], run_fn=_slow
+    )
+    try:
+        resp = client.post(
+            "/api/checkers/fake-1.0/typecheck",
+            json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+        )
+    finally:
+        app.dependency_overrides[get_checker_service] = _fake_service
+
+    assert resp.status_code == 500
+
+
+def test_request_over_size_limit_returns_413(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.app.MAX_REQUEST_BYTES", 100)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n" * 1000}, "python_version": "3.12"},
+    )
+    assert resp.status_code == 413

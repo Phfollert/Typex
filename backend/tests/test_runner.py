@@ -1,11 +1,12 @@
 import asyncio
+import time
 
 import pytest
 
 from adapters.base import Adapter
 from diagnostics import Diagnostic
 from registry import CHECKERS_BY_ID, CheckerSpec
-from runner import WorkspacePathError, run_checker
+from runner import CheckerTimeoutError, run_checker, WorkspacePathError
 
 MULTIFILE = {
     "_helper.py": "def add(x: int, y: int) -> int:\n    return x + y\n",
@@ -69,3 +70,36 @@ def test_run_checker_raises_for_missing_executable() -> None:
         asyncio.run(
             run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter())
         )
+
+
+class _SleepAdapter(Adapter):
+    name = "fake"
+
+    def check_command(
+        self, executable: str, workspace: str, target_python: str
+    ) -> list[str]:
+        return [executable, "30"]
+
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
+        return []
+
+
+def test_run_checker_times_out_and_kills_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("runner.CHECK_TIMEOUT_SECONDS", 0.2)
+    spec = CheckerSpec(
+        id="slow",
+        checker="fake",
+        version="0",
+        executable="/bin/sleep",
+        color="#000000",
+        adapter="fake",
+    )
+    start = time.monotonic()
+    with pytest.raises(CheckerTimeoutError):
+        asyncio.run(
+            run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_SleepAdapter())
+        )
+    # Returned on the timeout, not after the 30s sleep.
+    assert time.monotonic() - start < 5

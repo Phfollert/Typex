@@ -10,8 +10,15 @@ from diagnostics import Diagnostic
 from registry import ADAPTERS, CheckerSpec
 
 
+CHECK_TIMEOUT_SECONDS = 20.0
+
+
 class WorkspacePathError(ValueError):
     """A requested file path resolves outside the workspace root."""
+
+
+class CheckerTimeoutError(Exception):
+    """The checker subprocess exceeded its time budget and was killed."""
 
 
 @dataclass
@@ -53,7 +60,19 @@ async def run_checker(
             stderr=subprocess.PIPE,
             cwd=workspace,
         )
-        out, err = await proc.communicate()
+        try:
+            out, err = await asyncio.wait_for(
+                proc.communicate(), timeout=CHECK_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            await proc.wait()
+            raise CheckerTimeoutError(
+                f"{spec.id} exceeded {CHECK_TIMEOUT_SECONDS:.0f}s"
+            ) from None
         stdout, stderr = out.decode(), err.decode()
         diagnostics = adapter.normalize(stdout, workspace)
         return CheckerResult(

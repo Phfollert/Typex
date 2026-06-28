@@ -2,18 +2,31 @@ import json
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.base import RequestResponseEndpoint
 
 from diagnostics import Diagnostic
 from registry import CHECKERS
-from runner import WorkspacePathError, run_checker
+from runner import CheckerTimeoutError, WorkspacePathError, run_checker
 from service import CheckerInfo, CheckerService
 from typechecker import ConcurrentTypechecking, Typechecker
 
+MAX_REQUEST_BYTES = 4 * 1024 * 1024
+
 app = FastAPI()
+
+
+@app.middleware("http")
+async def limit_request_size(
+    request: Request, call_next: RequestResponseEndpoint
+) -> Response:
+    content_length = request.headers.get("content-length")
+    if content_length is not None and int(content_length) > MAX_REQUEST_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "request too large"})
+    return await call_next(request)
 
 
 class TypecheckRequest(BaseModel):
@@ -54,6 +67,8 @@ async def typecheck(
         result = await service.run(spec, request.files, request.python_version)
     except WorkspacePathError:
         raise HTTPException(status_code=400, detail="invalid file path in request")
+    except CheckerTimeoutError:
+        raise HTTPException(status_code=500, detail="checker timed out")
     return CheckerResultModel(
         checker=result.checker,
         version=result.version,
