@@ -11,6 +11,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from diagnostics import Diagnostic
 from registry import CHECKERS
 from runner import (
+    NormalizationError,
     CheckerOutputLimitError,
     CheckerTimeoutError,
     WorkspacePathError,
@@ -76,6 +77,8 @@ async def typecheck(
         raise HTTPException(status_code=500, detail="checker timed out")
     except CheckerOutputLimitError:
         raise HTTPException(status_code=500, detail="checker output too large")
+    except NormalizationError:
+        raise HTTPException(status_code=500, detail="could not parse checker output")
     return CheckerResultModel(
         checker=result.checker,
         version=result.version,

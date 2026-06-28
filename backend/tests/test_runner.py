@@ -5,9 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from adapters.base import Adapter
-from diagnostics import Diagnostic
+from diagnostics import Diagnostic, Severity
 from registry import CHECKERS_BY_ID, CheckerSpec
 from runner import (
+    NormalizationError,
     CheckerOutputLimitError,
     CheckerTimeoutError,
     run_checker,
@@ -170,4 +171,83 @@ def test_run_checker_does_not_kill_output_under_limit(
     )
     assert result.raw_stdout == "hello\n"
     assert result.raw_stderr == "warn\n"
+
+
+class _CrashAdapter(Adapter):
+    name = "fake"
+
+    def check_command(
+        self, executable: str, workspace: str, target_python: str
+    ) -> list[str]:
+        return [executable]
+
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
+        raise ValueError("could not parse")
+
+
+def _diag(file: str) -> Diagnostic:
+    return Diagnostic(
+        file=file,
+        line=1,
+        column=1,
+        end_line=1,
+        end_column=2,
+        severity=Severity.ERROR,
+        message="boom",
+        code=None,
+    )
+
+
+class _ExternalDiagAdapter(Adapter):
+    name = "fake"
+
+    def check_command(
+        self, executable: str, workspace: str, target_python: str
+    ) -> list[str]:
+        return [executable]
+
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
+        return [
+            _diag("main.py"),
+            _diag("/usr/lib/python3.12/typing.pyi"),
+            _diag("../escape.py"),
+        ]
+
+
+def test_run_checker_drops_out_of_workspace_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc = _mock_proc(stdout=[b"x"], stderr=[])
+    _patch_subprocess(monkeypatch, proc)
+    spec = CheckerSpec(
+        id="ext",
+        checker="fake",
+        version="0",
+        executable="checker",
+        color="#000000",
+        adapter="fake",
+    )
+    result = asyncio.run(
+        run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_ExternalDiagAdapter())
+    )
+    # Only the in-workspace finding survives; the absolute and escaping paths
+    # (which the UI can't render and which leak host paths) are dropped.
+    assert [d.file for d in result.diagnostics] == ["main.py"]
+
+
+def test_run_checker_wraps_normalize_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    proc = _mock_proc(stdout=[b"unparseable"], stderr=[b"Traceback ..."])
+    _patch_subprocess(monkeypatch, proc)
+    spec = CheckerSpec(
+        id="crash",
+        checker="fake",
+        version="0",
+        executable="checker",
+        color="#000000",
+        adapter="fake",
+    )
+    with pytest.raises(NormalizationError):
+        asyncio.run(
+            run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_CrashAdapter())
+        )
     proc.kill.assert_not_called()

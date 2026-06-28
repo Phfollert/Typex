@@ -31,6 +31,10 @@ class CheckerOutputLimitError(RunnerError):
     """The checker produced more output than the allowed cap and was killed."""
 
 
+class NormalizationError(RunnerError):
+    """The checker's output could not be parsed into diagnostics."""
+
+
 @dataclass
 class CheckerResult:
     checker: str
@@ -49,6 +53,17 @@ def _kill(proc: asyncio.subprocess.Process) -> None:
         proc.kill()
     except ProcessLookupError:
         pass
+
+
+def _in_workspace(file: str) -> bool:
+    """True if a (relativized) diagnostic path stays inside the workspace.
+
+    Checkers can be steered (e.g. via a user-supplied config) to report errors
+    in files outside the workspace; `relpath` leaves those absolute. The UI can
+    only render findings in submitted files, so out-of-workspace ones are
+    dropped rather than returned (which would also leak host paths)."""
+    p = Path(file)
+    return not p.is_absolute() and ".." not in p.parts
 
 
 async def _read_capped(
@@ -129,7 +144,13 @@ async def run_checker(
                 f"{spec.id} exceeded {MAX_OUTPUT_BYTES} bytes of output"
             )
         stdout, stderr = out.decode(errors="replace"), err.decode(errors="replace")
-        diagnostics = adapter.normalize(stdout, workspace)
+        try:
+            diagnostics = adapter.normalize(stdout, workspace)
+        except Exception as exc:
+            raise NormalizationError(
+                f"{spec.id} produced unparseable output (returncode {proc.returncode})"
+            ) from exc
+        diagnostics = [d for d in diagnostics if _in_workspace(d.file)]
         return CheckerResult(
             checker=spec.checker,
             version=spec.version,

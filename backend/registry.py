@@ -46,6 +46,12 @@ def load_checkers(config_path: Path = CONFIG_PATH) -> list[CheckerSpec]:
         spec_id = entry["id"]
         if "color" not in entry:
             raise ValueError(f"checker {spec_id!r} in {config_path} has no 'color'")
+        adapter = entry.get("adapter", checker)
+        if adapter not in ADAPTERS:
+            raise ValueError(
+                f"checker {spec_id!r} in {config_path} uses unknown adapter "
+                f"{adapter!r}"
+            )
         executable = str(VENVS_DIR / spec_id / "bin" / checker)
         specs.append(
             CheckerSpec(
@@ -54,7 +60,7 @@ def load_checkers(config_path: Path = CONFIG_PATH) -> list[CheckerSpec]:
                 version=entry["version"],
                 executable=executable,
                 color=entry["color"],
-                adapter=entry.get("adapter", checker),
+                adapter=adapter,
             )
         )
     return specs
