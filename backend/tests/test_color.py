@@ -2,7 +2,7 @@ import pytest
 
 from pathlib import Path
 
-from registry import load_checkers
+from registry import CheckerSpec, load_checkers
 from service import CheckerService
 from runner import CheckerResult
 
@@ -33,7 +33,9 @@ def test_load_checkers_requires_color(tmp_path: Path) -> None:
         load_checkers(cfg)
 
 
-async def _noop_run(spec, files, python_version) -> CheckerResult:  # type: ignore[no-untyped-def]
+async def _noop_run(
+    spec: CheckerSpec, files: dict[str, str], python_version: str
+) -> CheckerResult:
     raise AssertionError("not called")
 
 

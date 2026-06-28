@@ -24,3 +24,6 @@ markers = [
 
 [tool.pyright]
 typeCheckingMode = "strict"
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
