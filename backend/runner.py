@@ -13,11 +13,15 @@ from registry import ADAPTERS, CheckerSpec
 CHECK_TIMEOUT_SECONDS = 20.0
 
 
-class WorkspacePathError(ValueError):
+class RunnerError(Exception):
+    """Base for errors raised by the checker runner."""
+
+
+class WorkspacePathError(RunnerError):
     """A requested file path resolves outside the workspace root."""
 
 
-class CheckerTimeoutError(Exception):
+class CheckerTimeoutError(RunnerError):
     """The checker subprocess exceeded its time budget and was killed."""
 
 
