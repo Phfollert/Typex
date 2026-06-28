@@ -11,6 +11,8 @@ from registry import ADAPTERS, CheckerSpec
 
 
 CHECK_TIMEOUT_SECONDS = 20.0
+MAX_OUTPUT_BYTES = 1024 * 1024
+_READ_CHUNK = 65536
 
 
 class RunnerError(Exception):
@@ -25,6 +27,10 @@ class CheckerTimeoutError(RunnerError):
     """The checker subprocess exceeded its time budget and was killed."""
 
 
+class CheckerOutputLimitError(RunnerError):
+    """The checker produced more output than the allowed cap and was killed."""
+
+
 @dataclass
 class CheckerResult:
     checker: str
@@ -34,6 +40,47 @@ class CheckerResult:
     raw_stdout: str
     raw_stderr: str
     duration: float
+
+
+def _kill(proc: asyncio.subprocess.Process) -> None:
+    # The process may have already exited and been reaped between the deadline
+    # and this call, leaving the PID gone.
+    try:
+        proc.kill()
+    except ProcessLookupError:
+        pass
+
+
+async def _read_capped(
+    proc: asyncio.subprocess.Process, limit: int
+) -> tuple[bytes, bytes, bool]:
+    """Drain stdout and stderr concurrently, capping each at `limit` bytes.
+
+    Returns `(stdout, stderr, truncated)`. On overflow the process is killed
+    immediately so the sibling pipe reaches EOF (reading one pipe to its cap
+    while the other still blocks the producer would deadlock).
+    """
+    truncated = False
+
+    async def read(stream: asyncio.StreamReader) -> bytes:
+        nonlocal truncated
+        buf = bytearray()
+        while True:
+            data = await stream.read(_READ_CHUNK)
+            if not data:
+                break
+            buf += data
+            if len(buf) >= limit:
+                del buf[limit:]
+                if not truncated:
+                    truncated = True
+                    _kill(proc)
+                break
+        return bytes(buf)
+
+    assert proc.stdout is not None and proc.stderr is not None
+    out, err = await asyncio.gather(read(proc.stdout), read(proc.stderr))
+    return out, err, truncated
 
 
 def _write_workspace(files: dict[str, str], base: str) -> None:
@@ -65,19 +112,23 @@ async def run_checker(
             cwd=workspace,
         )
         try:
-            out, err = await asyncio.wait_for(
-                proc.communicate(), timeout=CHECK_TIMEOUT_SECONDS
+            out, err, truncated = await asyncio.wait_for(
+                _read_capped(proc, MAX_OUTPUT_BYTES), timeout=CHECK_TIMEOUT_SECONDS
             )
         except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
+            _kill(proc)
             await proc.wait()
             raise CheckerTimeoutError(
                 f"{spec.id} exceeded {CHECK_TIMEOUT_SECONDS:.0f}s"
             ) from None
-        stdout, stderr = out.decode(), err.decode()
+        await proc.wait()
+        if truncated:
+            # Truncated output is unreliable (e.g. a half-written JSON document),
+            # so fail rather than emit partial or garbage diagnostics.
+            raise CheckerOutputLimitError(
+                f"{spec.id} exceeded {MAX_OUTPUT_BYTES} bytes of output"
+            )
+        stdout, stderr = out.decode(errors="replace"), err.decode(errors="replace")
         diagnostics = adapter.normalize(stdout, workspace)
         return CheckerResult(
             checker=spec.checker,

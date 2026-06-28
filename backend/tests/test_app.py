@@ -4,7 +4,12 @@ from fastapi.testclient import TestClient
 from app.app import app, get_checker_service
 from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
-from runner import CheckerResult, CheckerTimeoutError, WorkspacePathError
+from runner import (
+    CheckerOutputLimitError,
+    CheckerResult,
+    CheckerTimeoutError,
+    WorkspacePathError,
+)
 from service import CheckerService
 
 FAKE_SPEC = CheckerSpec(
@@ -136,6 +141,26 @@ def test_typecheck_timeout_returns_500() -> None:
 
     app.dependency_overrides[get_checker_service] = lambda: CheckerService(
         specs=[FAKE_SPEC], run_fn=_slow
+    )
+    try:
+        resp = client.post(
+            "/api/checkers/fake-1.0/typecheck",
+            json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+        )
+    finally:
+        app.dependency_overrides[get_checker_service] = _fake_service
+
+    assert resp.status_code == 500
+
+
+def test_typecheck_output_limit_returns_500() -> None:
+    async def _flood(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise CheckerOutputLimitError("fake-1.0 exceeded 1048576 bytes of output")
+
+    app.dependency_overrides[get_checker_service] = lambda: CheckerService(
+        specs=[FAKE_SPEC], run_fn=_flood
     )
     try:
         resp = client.post(

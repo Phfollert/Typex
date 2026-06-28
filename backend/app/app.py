@@ -10,7 +10,12 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from diagnostics import Diagnostic
 from registry import CHECKERS
-from runner import CheckerTimeoutError, WorkspacePathError, run_checker
+from runner import (
+    CheckerOutputLimitError,
+    CheckerTimeoutError,
+    WorkspacePathError,
+    run_checker,
+)
 from service import CheckerInfo, CheckerService
 from typechecker import ConcurrentTypechecking, Typechecker
 
@@ -69,6 +74,8 @@ async def typecheck(
         raise HTTPException(status_code=400, detail="invalid file path in request")
     except CheckerTimeoutError:
         raise HTTPException(status_code=500, detail="checker timed out")
+    except CheckerOutputLimitError:
+        raise HTTPException(status_code=500, detail="checker output too large")
     return CheckerResultModel(
         checker=result.checker,
         version=result.version,

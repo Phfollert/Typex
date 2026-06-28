@@ -1,12 +1,18 @@
 import asyncio
 import time
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from adapters.base import Adapter
 from diagnostics import Diagnostic
 from registry import CHECKERS_BY_ID, CheckerSpec
-from runner import CheckerTimeoutError, run_checker, WorkspacePathError
+from runner import (
+    CheckerOutputLimitError,
+    CheckerTimeoutError,
+    run_checker,
+    WorkspacePathError,
+)
 
 MULTIFILE = {
     "_helper.py": "def add(x: int, y: int) -> int:\n    return x + y\n",
@@ -103,3 +109,65 @@ def test_run_checker_times_out_and_kills_subprocess(
         )
     # Returned on the timeout, not after the 30s sleep.
     assert time.monotonic() - start < 5
+
+
+def _mock_proc(stdout: list[bytes], stderr: list[bytes]) -> MagicMock:
+    """A stand-in for an asyncio subprocess whose pipes yield preset chunks.
+
+    `.read()` returns each chunk then b"" (EOF); `.kill()`/`.wait()` are mocks
+    so the cap path can be driven without spawning anything.
+    """
+    proc = MagicMock()
+    proc.stdout.read = AsyncMock(side_effect=[*stdout, b""])
+    proc.stderr.read = AsyncMock(side_effect=[*stderr, b""])
+    proc.wait = AsyncMock(return_value=0)
+    proc.returncode = 0
+    return proc
+
+
+def _patch_subprocess(monkeypatch: pytest.MonkeyPatch, proc: MagicMock) -> None:
+    monkeypatch.setattr(
+        asyncio, "create_subprocess_exec", AsyncMock(return_value=proc)
+    )
+
+
+def test_run_checker_caps_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("runner.MAX_OUTPUT_BYTES", 1000)
+    proc = _mock_proc(stdout=[b"x" * 600, b"x" * 600], stderr=[])
+    _patch_subprocess(monkeypatch, proc)
+    spec = CheckerSpec(
+        id="flood",
+        checker="fake",
+        version="0",
+        executable="checker",
+        color="#000000",
+        adapter="fake",
+    )
+    with pytest.raises(CheckerOutputLimitError):
+        asyncio.run(
+            run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter())
+        )
+    # The overflowing process was killed rather than read to completion.
+    proc.kill.assert_called_once()
+
+
+def test_run_checker_does_not_kill_output_under_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("runner.MAX_OUTPUT_BYTES", 1000)
+    proc = _mock_proc(stdout=[b"hello\n"], stderr=[b"warn\n"])
+    _patch_subprocess(monkeypatch, proc)
+    spec = CheckerSpec(
+        id="ok",
+        checker="fake",
+        version="0",
+        executable="checker",
+        color="#000000",
+        adapter="fake",
+    )
+    result = asyncio.run(
+        run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter())
+    )
+    assert result.raw_stdout == "hello\n"
+    assert result.raw_stderr == "warn\n"
+    proc.kill.assert_not_called()
