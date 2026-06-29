@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from adapters.base import Adapter
-from adapters.mypy_adapter import MypyAdapter
+from adapters.mypy_adapter import MypyAdapter, MypyTextAdapter
 from adapters.pyright_adapter import PyrightAdapter
 from adapters.pyrefly_adapter import PyreflyAdapter
 from adapters.ty_adapter import TyAdapter
@@ -13,10 +13,14 @@ VENVS_DIR = ROOT / ".venvs"
 CONFIG_PATH = ROOT / "checkers.toml"
 
 ADAPTERS: dict[str, Adapter] = {
-    "mypy": MypyAdapter(),
-    "pyright": PyrightAdapter(),
-    "ty": TyAdapter(),
-    "pyrefly": PyreflyAdapter(),
+    a.name: a
+    for a in (
+        MypyAdapter(),
+        MypyTextAdapter(),
+        PyrightAdapter(),
+        TyAdapter(),
+        PyreflyAdapter(),
+    )
 }
 
 
@@ -27,6 +31,7 @@ class CheckerSpec:
     version: str
     executable: str
     color: str
+    adapter: str
 
     @property
     def label(self) -> str:
@@ -41,6 +46,12 @@ def load_checkers(config_path: Path = CONFIG_PATH) -> list[CheckerSpec]:
         spec_id = entry["id"]
         if "color" not in entry:
             raise ValueError(f"checker {spec_id!r} in {config_path} has no 'color'")
+        adapter = entry.get("adapter", checker)
+        if adapter not in ADAPTERS:
+            raise ValueError(
+                f"checker {spec_id!r} in {config_path} uses unknown adapter "
+                f"{adapter!r}"
+            )
         executable = str(VENVS_DIR / spec_id / "bin" / checker)
         specs.append(
             CheckerSpec(
@@ -49,6 +60,7 @@ def load_checkers(config_path: Path = CONFIG_PATH) -> list[CheckerSpec]:
                 version=entry["version"],
                 executable=executable,
                 color=entry["color"],
+                adapter=adapter,
             )
         )
     return specs

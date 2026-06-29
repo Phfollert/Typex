@@ -15,7 +15,7 @@ class PyreflyAdapter(Adapter):
     name = "pyrefly"
 
     def check_command(
-        self, executable: str, target: str, python_version: str
+        self, executable: str, workspace: str, target_python: str
     ) -> list[str]:
         return [
             executable,
@@ -23,17 +23,17 @@ class PyreflyAdapter(Adapter):
             "--output-format",
             "json",
             "--python-version",
-            python_version,
-            target,
+            target_python,
+            workspace,
         ]
 
-    def normalize(self, stdout: str, workspace_dir: str) -> list[Diagnostic]:
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
         data = json.loads(stdout)
         diagnostics: list[Diagnostic] = []
         for d in data.get("errors", []):
             diagnostics.append(
                 Diagnostic(
-                    file=relpath(d["path"], workspace_dir),
+                    file=relpath(d["path"], workspace),
                     line=d["line"],
                     column=d["column"],
                     end_line=d.get("stop_line", d["line"]),

@@ -1,10 +1,19 @@
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.app import app, get_checker_service
+from app.app import create_app, get_checker_service
 from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
-from runner import CheckerResult
-from service import CheckerService
+from runner import (
+    NormalizationError,
+    CheckerOutputLimitError,
+    CheckerResult,
+    CheckerTimeoutError,
+    UnsupportedFileError,
+    WorkspacePathError,
+)
+from service import CheckerService, RunFn
 
 FAKE_SPEC = CheckerSpec(
     id="fake-1.0",
@@ -12,6 +21,7 @@ FAKE_SPEC = CheckerSpec(
     version="1.0",
     executable="/nonexistent/fake",
     color="#000000",
+    adapter="fake",
 )
 
 
@@ -36,7 +46,6 @@ async def _fake_run(
         ],
         raw_stdout="",
         raw_stderr="",
-        error=None,
         duration=0.01,
     )
 
@@ -45,29 +54,49 @@ def _fake_service() -> CheckerService:
     return CheckerService(specs=[FAKE_SPEC], run_fn=_fake_run)
 
 
-app.dependency_overrides[get_checker_service] = _fake_service
-client = TestClient(app)
+@pytest.fixture
+def app_() -> FastAPI:
+    test_app = create_app()
+    test_app.dependency_overrides[get_checker_service] = _fake_service
+    return test_app
 
 
-def test_list_checkers() -> None:
-    resp = client.get("/checkers")
+@pytest.fixture
+def client(app_: FastAPI) -> TestClient:
+    return TestClient(app_)
+
+
+def _override_run(app_: FastAPI, run_fn: RunFn) -> None:
+    app_.dependency_overrides[get_checker_service] = lambda: CheckerService(
+        specs=[FAKE_SPEC], run_fn=run_fn
+    )
+
+
+def test_list_checkers(client: TestClient) -> None:
+    resp = client.get("/api/checkers")
     assert resp.status_code == 200
     assert resp.json() == [
-        {"id": "fake-1.0", "checker": "fake", "version": "1.0", "label": "fake 1.0"}
+        {
+            "id": "fake-1.0",
+            "checker": "fake",
+            "version": "1.0",
+            "label": "fake 1.0",
+            "color": "#000000",
+        }
     ]
 
 
-def test_typecheck_unknown_id_returns_404() -> None:
+def test_typecheck_unknown_id_returns_404(client: TestClient) -> None:
     resp = client.post(
-        "/checkers/nope/typecheck",
+        "/api/checkers/nope/typecheck",
         json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
     assert resp.status_code == 404
 
 
-def test_typecheck_known_id_returns_result() -> None:
+def test_typecheck_known_id_returns_result(client: TestClient) -> None:
     resp = client.post(
-        "/checkers/fake-1.0/typecheck",
+        "/api/checkers/fake-1.0/typecheck",
         json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
     )
     assert resp.status_code == 200
@@ -75,3 +104,114 @@ def test_typecheck_known_id_returns_result() -> None:
     assert data["checker"] == "fake"
     assert data["version"] == "1.0"
     assert data["diagnostics"][0]["message"] == "boom"
+
+
+def test_typecheck_path_escape_returns_400_without_leaking(
+    app_: FastAPI, client: TestClient
+) -> None:
+    async def _raising_run(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise WorkspacePathError("path escapes workspace: '../escape.py'")
+
+    _override_run(app_, _raising_run)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"../escape.py": "x = 1\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 400
+    assert "escape.py" not in resp.text
+    assert "escapes workspace" not in resp.text
+
+
+def test_typecheck_unsupported_file_returns_400(
+    app_: FastAPI, client: TestClient
+) -> None:
+    async def _reject(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise UnsupportedFileError("unsupported file type: 'mypy.ini'")
+
+    _override_run(app_, _reject)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"mypy.ini": "[mypy]\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_typecheck_unhandled_error_returns_500_without_leaking(app_: FastAPI) -> None:
+    async def _boom(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise RuntimeError("secret internal detail")
+
+    _override_run(app_, _boom)
+    safe_client = TestClient(app_, raise_server_exceptions=False)
+    resp = safe_client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 500
+    assert "secret internal detail" not in resp.text
+
+
+def test_typecheck_timeout_returns_500(app_: FastAPI, client: TestClient) -> None:
+    async def _slow(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise CheckerTimeoutError("fake-1.0 exceeded 20s")
+
+    _override_run(app_, _slow)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 500
+
+
+def test_typecheck_output_limit_returns_500(app_: FastAPI, client: TestClient) -> None:
+    async def _flood(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise CheckerOutputLimitError("fake-1.0 exceeded 1048576 bytes of output")
+
+    _override_run(app_, _flood)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 500
+
+
+def test_typecheck_normalization_error_returns_500(
+    app_: FastAPI, client: TestClient
+) -> None:
+    async def _bad_output(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise NormalizationError("fake-1.0 produced unparseable output (returncode 1)")
+
+    _override_run(app_, _bad_output)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 500
+
+
+def test_request_over_size_limit_returns_413(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.app.MAX_REQUEST_BYTES", 100)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n" * 1000}, "python_version": "3.12"},
+    )
+    assert resp.status_code == 413

@@ -2,7 +2,7 @@ import pytest
 
 from pathlib import Path
 
-from registry import load_checkers
+from registry import CheckerSpec, load_checkers
 from service import CheckerService
 from runner import CheckerResult
 
@@ -33,7 +33,20 @@ def test_load_checkers_requires_color(tmp_path: Path) -> None:
         load_checkers(cfg)
 
 
-async def _noop_run(spec, files, python_version) -> CheckerResult:  # type: ignore[no-untyped-def]
+def test_load_checkers_rejects_unknown_adapter(tmp_path: Path) -> None:
+    # A typo'd adapter must fail at load, not as a 500 on every request.
+    cfg = _write_toml(
+        tmp_path,
+        '[[checker]]\nid = "mypy-1.0"\nchecker = "mypy"\nversion = "1.0"\n'
+        'color = "#ef4444"\nadapter = "nope"\n',
+    )
+    with pytest.raises(ValueError, match="unknown adapter"):
+        load_checkers(cfg)
+
+
+async def _noop_run(
+    spec: CheckerSpec, files: dict[str, str], python_version: str
+) -> CheckerResult:
     raise AssertionError("not called")
 
 

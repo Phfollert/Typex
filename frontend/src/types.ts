@@ -32,7 +32,6 @@ export interface CheckerResult {
   diagnostics: CheckerDiagnostic[];
   raw_stdout: string;
   raw_stderr: string;
-  error: string | null;
   duration: number;
 }
 

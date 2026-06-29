@@ -79,10 +79,6 @@ export function useCheckerRun({ files, targetVersion, isReady, canRun }: UseChec
           return;
         }
         const result = outcome.value;
-        if (result.error) {
-          logError(`[${result.checker} ${result.version}] failed: ${result.error}`);
-          return;
-        }
         const info = checkerById.get(id);
         if (!info) {
           logError(`[${id}] unknown checker id; dropping ${result.diagnostics.length} diagnostics`);
