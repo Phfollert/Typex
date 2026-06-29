@@ -44,8 +44,6 @@ class CheckerResultModel(BaseModel):
     version: str
     returncode: int | None
     diagnostics: list[Diagnostic]
-    raw_stdout: str
-    raw_stderr: str
     duration: float
 
 
@@ -85,8 +83,6 @@ async def typecheck(
         version=result.version,
         returncode=result.returncode,
         diagnostics=result.diagnostics,
-        raw_stdout=result.raw_stdout,
-        raw_stderr=result.raw_stderr,
         duration=result.duration,
     )
 
