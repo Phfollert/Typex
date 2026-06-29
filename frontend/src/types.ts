@@ -32,7 +32,7 @@ export interface EditorDiagnostic {
   checkerLabel: string;
   color: string;
   line: number;
-  character: number;
+  column: number;
   endLine: number;
   endColumn: number;
   message: string;

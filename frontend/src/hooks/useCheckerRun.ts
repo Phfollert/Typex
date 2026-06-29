@@ -91,7 +91,7 @@ export function useCheckerRun({ files, targetVersion, isReady, canRun }: UseChec
             checkerLabel: info.label,
             color: info.color,
             line: d.line,
-            character: d.column,
+            column: d.column,
             endLine: d.end_line,
             endColumn: d.end_column,
             message: d.code ? `${d.message} (${d.code})` : d.message,

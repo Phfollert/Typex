@@ -41,13 +41,13 @@ export function expandToSegments(
 
     if (endLine === d.line) {
       const endColumn =
-        d.endColumn && d.endColumn > d.character ? d.endColumn : d.character + 10
-      segments.push({ ...base, line: d.line, startColumn: d.character, endColumn })
+        d.endColumn && d.endColumn > d.column ? d.endColumn : d.column + 10
+      segments.push({ ...base, line: d.line, startColumn: d.column, endColumn })
       continue
     }
 
     for (let line = d.line; line <= endLine; line++) {
-      const startColumn = line === d.line ? d.character : 1
+      const startColumn = line === d.line ? d.column : 1
       const endColumn = line === endLine ? d.endColumn : lineEndColumn(line)
       segments.push({
         ...base,
