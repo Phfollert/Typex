@@ -6,16 +6,6 @@ interface Props {
   onPick: (entry: ExampleEntry) => void;
 }
 
-function groupByCategory(entries: ExampleEntry[]): [string, ExampleEntry[]][] {
-  const groups: Map<string, ExampleEntry[]> = new Map();
-  for (const e of entries) {
-    const list = groups.get(e.category);
-    if (list) list.push(e);
-    else groups.set(e.category, [e]);
-  }
-  return Array.from(groups.entries());
-}
-
 export default function ExamplePicker({ entries, onPick }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -38,8 +28,6 @@ export default function ExamplePicker({ entries, onPick }: Props) {
     };
   }, [open]);
 
-  const groups = groupByCategory(entries);
-
   return (
     <div className="example-picker" ref={rootRef}>
       <button className="pane-action" onClick={() => setOpen((o) => !o)} title="Load an example">
@@ -47,26 +35,21 @@ export default function ExamplePicker({ entries, onPick }: Props) {
       </button>
       {open && (
         <div className="example-menu">
-          {groups.length === 0 ? (
+          {entries.length === 0 ? (
             <div className="example-menu-empty">No examples available</div>
           ) : (
-            groups.map(([category, items]) => (
-              <div key={category} className="example-group">
-                <div className="example-group-header">{category}</div>
-                {items.map((entry) => (
-                  <button
-                    key={entry.id}
-                    className="example-item"
-                    title={entry.description}
-                    onClick={() => {
-                      onPick(entry);
-                      setOpen(false);
-                    }}
-                  >
-                    {entry.title}
-                  </button>
-                ))}
-              </div>
+            entries.map((entry) => (
+              <button
+                key={entry.id}
+                className="example-item"
+                title={entry.description}
+                onClick={() => {
+                  onPick(entry);
+                  setOpen(false);
+                }}
+              >
+                {entry.title}
+              </button>
             ))
           )}
         </div>

@@ -197,14 +197,6 @@
   overflow-y: auto;
 }
 
-.example-group-header {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-}
-
 .example-item {
   display: block;
   width: 100%;
