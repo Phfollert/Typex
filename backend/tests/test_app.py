@@ -10,6 +10,7 @@ from runner import (
     CheckerOutputLimitError,
     CheckerResult,
     CheckerTimeoutError,
+    UnsupportedFileError,
     WorkspacePathError,
 )
 from service import CheckerService, RunFn
@@ -122,6 +123,23 @@ def test_typecheck_path_escape_returns_400_without_leaking(
     assert resp.status_code == 400
     assert "escape.py" not in resp.text
     assert "escapes workspace" not in resp.text
+
+
+def test_typecheck_unsupported_file_returns_400(
+    app_: FastAPI, client: TestClient
+) -> None:
+    async def _reject(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise UnsupportedFileError("unsupported file type: 'mypy.ini'")
+
+    _override_run(app_, _reject)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"mypy.ini": "[mypy]\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 400
 
 
 def test_typecheck_unhandled_error_returns_500_without_leaking(app_: FastAPI) -> None:

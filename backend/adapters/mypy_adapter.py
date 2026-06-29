@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 from adapters.base import Adapter, relpath
@@ -21,6 +22,8 @@ class MypyAdapter(Adapter):
     ) -> list[str]:
         return [
             executable,
+            "--config-file",
+            os.devnull,
             "--python-version",
             target_python,
             "--output",
@@ -76,6 +79,8 @@ class MypyTextAdapter(Adapter):
     ) -> list[str]:
         return [
             executable,
+            "--config-file",
+            os.devnull,
             "--python-version",
             target_python,
             "--no-error-summary",

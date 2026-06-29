@@ -1,6 +1,5 @@
-import json
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -14,11 +13,11 @@ from runner import (
     NormalizationError,
     CheckerOutputLimitError,
     CheckerTimeoutError,
+    UnsupportedFileError,
     WorkspacePathError,
     run_checker,
 )
 from service import CheckerInfo, CheckerService
-from typechecker import ConcurrentTypechecking, Typechecker
 
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
 STATIC_DIR = Path("static")
@@ -73,6 +72,8 @@ async def typecheck(
         result = await service.run(spec, request.files, request.python_version)
     except WorkspacePathError:
         raise HTTPException(status_code=400, detail="invalid file path in request")
+    except UnsupportedFileError:
+        raise HTTPException(status_code=400, detail="only .py/.pyi files are allowed")
     except CheckerTimeoutError:
         raise HTTPException(status_code=500, detail="checker timed out")
     except CheckerOutputLimitError:
@@ -87,67 +88,6 @@ async def typecheck(
         raw_stdout=result.raw_stdout,
         raw_stderr=result.raw_stderr,
         duration=result.duration,
-    )
-
-
-class TypecheckDebugRequest(BaseModel):
-    code_snippet: str
-    typecheckers: set[Typechecker] | None = None
-
-
-class TypecheckDebugResult(BaseModel):
-    stdout: dict[str, Any] | list[Any] | str
-    stderr: dict[str, Any] | list[Any] | str
-    returncode: int | None
-
-
-class TypecheckDebugResponse(BaseModel):
-    code_snippet: str
-    total_time: float
-    results: dict[Typechecker, TypecheckDebugResult | Literal["An error occurred"]]
-
-
-@router.get("/api/example-debug")
-async def example_debug() -> TypecheckDebugResponse:
-    program = """import requests
-def greet(name: str) -> int:
-    return "Hello, " + name
-    """
-    return await typecheck_debug(TypecheckDebugRequest(code_snippet=program))
-
-
-@router.post("/api/typecheck-debug", response_model=TypecheckDebugResponse)
-async def typecheck_debug(request: TypecheckDebugRequest) -> TypecheckDebugResponse:
-    checker = ConcurrentTypechecking(
-        request.code_snippet,
-    )
-    total_time, results = await checker.run(
-        request.typecheckers if request.typecheckers else set()
-    )
-    responses: dict[
-        Typechecker, TypecheckDebugResult | Literal["An error occurred"]
-    ] = dict()
-    for key in results:
-        result = results[key]
-        if isinstance(result, BaseException):
-            print(result)
-            responses[key] = "An error occurred"
-            continue
-
-        try:
-            responses[key] = TypecheckDebugResult(
-                stdout=json.loads(result.stdout) if result.stdout != "" else {},
-                stderr=result.stderr,
-                returncode=result.returncode,
-            )
-        except json.JSONDecodeError:
-            responses[key] = TypecheckDebugResult(
-                stdout=result.stdout,
-                stderr=result.stderr,
-                returncode=result.returncode,
-            )
-    return TypecheckDebugResponse(
-        code_snippet=request.code_snippet, total_time=total_time, results=responses
     )
 
 

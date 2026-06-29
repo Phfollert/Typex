@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -6,11 +7,12 @@ import pytest
 
 from adapters.base import Adapter
 from diagnostics import Diagnostic, Severity
-from registry import CHECKERS_BY_ID, CheckerSpec
+from registry import CHECKERS, CHECKERS_BY_ID, CheckerSpec
 from runner import (
     NormalizationError,
     CheckerOutputLimitError,
     CheckerTimeoutError,
+    UnsupportedFileError,
     run_checker,
     WorkspacePathError,
 )
@@ -61,6 +63,24 @@ def test_run_checker_rejects_paths_escaping_workspace(rel: str) -> None:
     with pytest.raises(WorkspacePathError):
         asyncio.run(
             run_checker(spec, {rel: "x = 1\n"}, "3.12", adapter=_FakeAdapter())
+        )
+
+
+@pytest.mark.parametrize(
+    "key", ["mypy.ini", "pyproject.toml", "pyrightconfig.json", "setup.cfg", "noext"]
+)
+def test_run_checker_rejects_non_python_files(key: str) -> None:
+    spec = CheckerSpec(
+        id="broken",
+        checker="fake",
+        version="0",
+        executable="/nonexistent/checker",
+        color="#000000",
+        adapter="fake",
+    )
+    with pytest.raises(UnsupportedFileError):
+        asyncio.run(
+            run_checker(spec, {key: "data\n"}, "3.12", adapter=_FakeAdapter())
         )
 
 
@@ -130,6 +150,51 @@ def _patch_subprocess(monkeypatch: pytest.MonkeyPatch, proc: MagicMock) -> None:
     monkeypatch.setattr(
         asyncio, "create_subprocess_exec", AsyncMock(return_value=proc)
     )
+
+
+def test_run_checker_sandboxes_subprocess_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VIRTUAL_ENV", "/app/.venv")
+    monkeypatch.setenv("PATH", os.pathsep.join(["/app/.venv/bin", "/usr/bin", "/bin"]))
+    monkeypatch.setenv("PYTHONPATH", "/leak")
+    monkeypatch.setenv("FLY_API_TOKEN", "super-secret")
+    monkeypatch.setenv("HOME", "/home/serveruser")
+    csx = AsyncMock(return_value=_mock_proc(stdout=[], stderr=[]))
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", csx)
+    spec = CheckerSpec(
+        id="x",
+        checker="fake",
+        version="0",
+        executable="checker",
+        color="#000000",
+        adapter="fake",
+    )
+    asyncio.run(run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter()))
+
+    env = csx.call_args.kwargs["env"]
+    # The app venv (VIRTUAL_ENV + its bin on PATH) must be hidden from checkers.
+    assert "VIRTUAL_ENV" not in env
+    assert "PYTHONPATH" not in env
+    assert "/app/.venv/bin" not in env["PATH"].split(os.pathsep)
+    assert "/usr/bin" in env["PATH"].split(os.pathsep)
+    # Deny-by-default: arbitrary/secret vars are not forwarded.
+    assert "FLY_API_TOKEN" not in env
+    # HOME is replaced with an empty per-run dir, not the server's home.
+    assert env["HOME"] != "/home/serveruser"
+    assert env["XDG_CONFIG_HOME"].startswith(env["HOME"])
+
+
+@pytest.mark.slow
+def test_pyright_does_not_resolve_app_dependencies() -> None:
+    # fastapi is a dependency of the server app, not of any checker venv. With
+    # env sandboxing, pyright must not discover it via the app's interpreter.
+    pyright = next((s for s in CHECKERS if s.checker == "pyright"), None)
+    if pyright is None:
+        pytest.skip("no pyright checker provisioned")
+    result = asyncio.run(run_checker(pyright, {"main.py": "import fastapi\n"}, "3.12"))
+    messages = " ".join(d.message.lower() for d in result.diagnostics)
+    assert "could not be resolved" in messages or "fastapi" in messages
 
 
 def test_run_checker_caps_output(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,5 +1,7 @@
 """Fast unit tests for the two mypy adapters (no subprocess)."""
 
+import os
+
 from adapters.mypy_adapter import MypyAdapter, MypyTextAdapter
 from diagnostics import Severity
 
@@ -8,6 +10,17 @@ def test_json_adapter_requests_json_output() -> None:
     cmd = MypyAdapter().check_command("mypy", "/ws", "3.12")
     assert "--output" in cmd and "json" in cmd
     assert "--show-error-end" not in cmd
+
+
+def test_both_adapters_ignore_user_config() -> None:
+    # `--config-file=os.devnull` keeps mypy from reading any discovered config
+    # (plugins / mypy_path).
+    for cmd in (
+        MypyAdapter().check_command("mypy", "/ws", "3.12"),
+        MypyTextAdapter().check_command("mypy", "/ws", "3.12"),
+    ):
+        assert "--config-file" in cmd
+        assert os.devnull in cmd
 
 
 def test_text_adapter_requests_text_output() -> None:
