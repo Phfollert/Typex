@@ -4,8 +4,6 @@ export type { Diagnostic as RuffDiagnostic } from '@astral-sh/ruff-wasm-web';
 
 export interface CheckerInfo {
   id: string;
-  checker: string;
-  version: string;
   label: string;
   color: string;
 }
@@ -26,13 +24,7 @@ export interface CheckerDiagnostic {
 }
 
 export interface CheckerResult {
-  checker: string;
-  version: string;
-  returncode: number | null;
   diagnostics: CheckerDiagnostic[];
-  raw_stdout: string;
-  raw_stderr: string;
-  duration: number;
 }
 
 export interface EditorDiagnostic {

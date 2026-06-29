@@ -246,10 +246,10 @@ describe('layoutSquiggles', () => {
     expect(laneByColor(forward, '#00ff00')).toBe(laneByColor(reversed, '#00ff00'))
   })
 
-  // Two selections of the same tool share a checker name but have distinct ids.
-  // They must land on separate lanes, each keeping its own color, rather than
-  // collide on one lane's single background slot.
-  it('gives same-named checkers with distinct ids separate lanes and keeps both colors', () => {
+  // Distinct selections (different versions or configs of a tool) carry distinct
+  // labels. They must land on separate lanes, each keeping its own color, rather
+  // than collide on one lane's single background slot.
+  it('gives checkers with distinct labels separate lanes and keeps both colors', () => {
     const { placements } = layoutSquiggles(
       [
         diag({ character: 1, endColumn: 10, checkerLabel: 'mypy 1.20', color: '#ef4444' }),

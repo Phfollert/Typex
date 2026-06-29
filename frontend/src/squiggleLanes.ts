@@ -155,11 +155,6 @@ export interface SquiggleLayout {
 // Each checker occupies a single lane across every line it touches, so a
 // multi-line finding keeps one continuous lane down all its rows. Each checker
 // greedily takes the lowest lane no overlapping squiggle already uses.
-//
-// A checker is keyed by its label ("<tool> <version>"), so two selections of
-// the same tool (different versions) each get their own lane instead of
-// fighting over one lane's single background slot.
-//
 // Higher lane numbers render nearer the text (see ensureLaneStyles). The
 // earliest-starting checker should sit nearest the text, so we place the latest
 // starter first (it takes lane 1, farthest from the text) and leave the highest
