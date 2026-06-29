@@ -5,7 +5,6 @@ import type { EditorDiagnostic } from '@/types'
 function diag(over: Partial<EditorDiagnostic>): EditorDiagnostic {
   return {
     file: 'a.py',
-    checker: 'mypy',
     checkerLabel: 'mypy',
     color: '#ff0000',
     line: 1,
@@ -25,7 +24,7 @@ describe('expandToSegments', () => {
   it('keeps a single-line finding as one segment with its own columns', () => {
     const segs = expandToSegments([diag({ line: 2, character: 3, endLine: 2, endColumn: 9 })], lineEnd)
     expect(segs).toHaveLength(1)
-    expect(segs[0]).toMatchObject({ line: 2, startColumn: 3, endColumn: 9, checker: 'mypy', shape: 'wavy' })
+    expect(segs[0]).toMatchObject({ line: 2, startColumn: 3, endColumn: 9, checkerLabel: 'mypy', shape: 'wavy' })
   })
 
   it('expands a multi-line finding into one segment per crossed line', () => {
@@ -80,8 +79,8 @@ describe('layoutSquiggles', () => {
   it('lets two non-overlapping checkers share lane 1', () => {
     const { placements } = layoutSquiggles(
       [
-        diag({ character: 1, endColumn: 4, checker: 'mypy', color: '#ff0000' }),
-        diag({ character: 6, endColumn: 9, checker: 'pyright', color: '#00ff00' }),
+        diag({ character: 1, endColumn: 4, checkerLabel: 'mypy', color: '#ff0000' }),
+        diag({ character: 6, endColumn: 9, checkerLabel: 'pyright', color: '#00ff00' }),
       ],
       lineEnd,
     )
@@ -91,8 +90,8 @@ describe('layoutSquiggles', () => {
   it('greedily gives overlapping checkers the closest free lanes', () => {
     const { placements, maxLane } = layoutSquiggles(
       [
-        diag({ character: 1, endColumn: 10, checker: 'mypy', color: '#ff0000' }),
-        diag({ character: 1, endColumn: 10, checker: 'pyright', color: '#00ff00' }),
+        diag({ character: 1, endColumn: 10, checkerLabel: 'mypy', color: '#ff0000' }),
+        diag({ character: 1, endColumn: 10, checkerLabel: 'pyright', color: '#00ff00' }),
       ],
       lineEnd,
     )
@@ -105,9 +104,9 @@ describe('layoutSquiggles', () => {
     // a: 1-5, b: 4-12 overlaps a, c: 11-15 overlaps b but not a.
     const { placements, maxLane } = layoutSquiggles(
       [
-        diag({ character: 1, endColumn: 5, checker: 'a', color: '#aaaaaa' }),
-        diag({ character: 4, endColumn: 12, checker: 'b', color: '#bbbbbb' }),
-        diag({ character: 11, endColumn: 15, checker: 'c', color: '#cccccc' }),
+        diag({ character: 1, endColumn: 5, checkerLabel: 'a', color: '#aaaaaa' }),
+        diag({ character: 4, endColumn: 12, checkerLabel: 'b', color: '#bbbbbb' }),
+        diag({ character: 11, endColumn: 15, checkerLabel: 'c', color: '#cccccc' }),
       ],
       lineEnd,
     )
@@ -181,8 +180,8 @@ describe('layoutSquiggles', () => {
     const { placements } = layoutSquiggles(
       [
         // mypy spans lines 1-3; pyright overlaps only on line 2.
-        diag({ line: 1, character: 1, endLine: 3, endColumn: 5, checker: 'mypy', color: '#ff0000' }),
-        diag({ line: 2, character: 1, endLine: 2, endColumn: 5, checker: 'pyright', color: '#00ff00' }),
+        diag({ line: 1, character: 1, endLine: 3, endColumn: 5, checkerLabel: 'mypy', color: '#ff0000' }),
+        diag({ line: 2, character: 1, endLine: 2, endColumn: 5, checkerLabel: 'pyright', color: '#00ff00' }),
       ],
       lineEnd,
     )
@@ -201,8 +200,8 @@ describe('layoutSquiggles', () => {
   it('orders by the document start even when a finding continues from a previous line', () => {
     const { placements } = layoutSquiggles(
       [
-        diag({ line: 4, character: 15, endLine: 5, endColumn: 6, checker: 'mypy', color: '#ef4444' }),
-        diag({ line: 5, character: 1, endLine: 5, endColumn: 6, checker: 'pyright', color: '#3b82f6' }),
+        diag({ line: 4, character: 15, endLine: 5, endColumn: 6, checkerLabel: 'mypy', color: '#ef4444' }),
+        diag({ line: 5, character: 1, endLine: 5, endColumn: 6, checkerLabel: 'pyright', color: '#3b82f6' }),
       ],
       () => 21,
     )
@@ -216,9 +215,9 @@ describe('layoutSquiggles', () => {
   it('reports the global max lane across lines and keeps a checker on its lane', () => {
     const { placements, maxLane } = layoutSquiggles(
       [
-        diag({ line: 1, character: 1, endColumn: 10, checker: 'pyright', color: '#00ff00' }),
-        diag({ line: 1, character: 4, endColumn: 6, checker: 'mypy', color: '#ff0000' }),
-        diag({ line: 2, character: 1, endColumn: 5, checker: 'mypy', color: '#ff0000' }),
+        diag({ line: 1, character: 1, endColumn: 10, checkerLabel: 'pyright', color: '#00ff00' }),
+        diag({ line: 1, character: 4, endColumn: 6, checkerLabel: 'mypy', color: '#ff0000' }),
+        diag({ line: 2, character: 1, endColumn: 5, checkerLabel: 'mypy', color: '#ff0000' }),
       ],
       lineEnd,
     )
@@ -231,7 +230,7 @@ describe('layoutSquiggles', () => {
   it('grows lanes past 4 when many checkers overlap', () => {
     const { maxLane } = layoutSquiggles(
       ['a', 'b', 'c', 'd', 'e'].map((c, i) =>
-        diag({ character: 1, endColumn: 10, checker: c, color: `#${i}${i}${i}${i}${i}${i}` }),
+        diag({ character: 1, endColumn: 10, checkerLabel: c, color: `#${i}${i}${i}${i}${i}${i}` }),
       ),
       lineEnd,
     )
@@ -239,22 +238,22 @@ describe('layoutSquiggles', () => {
   })
 
   it('is deterministic regardless of input order', () => {
-    const a = diag({ character: 4, endColumn: 6, checker: 'mypy', color: '#ff0000' })
-    const b = diag({ character: 1, endColumn: 10, checker: 'pyright', color: '#00ff00' })
+    const a = diag({ character: 4, endColumn: 6, checkerLabel: 'mypy', color: '#ff0000' })
+    const b = diag({ character: 1, endColumn: 10, checkerLabel: 'pyright', color: '#00ff00' })
     const forward = layoutSquiggles([a, b], lineEnd).placements
     const reversed = layoutSquiggles([b, a], lineEnd).placements
     expect(laneByColor(forward, '#ff0000')).toBe(laneByColor(reversed, '#ff0000'))
     expect(laneByColor(forward, '#00ff00')).toBe(laneByColor(reversed, '#00ff00'))
   })
 
-  // Two selections of the same tool can share a checker name but differ in
-  // color. They must land on separate lanes, each keeping its own color, rather
-  // than collide on one lane's single background slot.
-  it('gives same-named checkers with different colors distinct lanes and keeps both colors', () => {
+  // Two selections of the same tool share a checker name but have distinct ids.
+  // They must land on separate lanes, each keeping its own color, rather than
+  // collide on one lane's single background slot.
+  it('gives same-named checkers with distinct ids separate lanes and keeps both colors', () => {
     const { placements } = layoutSquiggles(
       [
-        diag({ character: 1, endColumn: 10, checker: 'mypy', color: '#ef4444' }),
-        diag({ character: 1, endColumn: 10, checker: 'mypy', color: '#a855f7' }),
+        diag({ character: 1, endColumn: 10, checkerLabel: 'mypy 1.20', color: '#ef4444' }),
+        diag({ character: 1, endColumn: 10, checkerLabel: 'mypy 1.10', color: '#a855f7' }),
       ],
       lineEnd,
     )
@@ -268,9 +267,9 @@ describe('layoutSquiggles', () => {
   it('keeps a checker off columns it never flags when another spans the whole line', () => {
     const { placements } = layoutSquiggles(
       [
-        diag({ line: 4, character: 5, endLine: 5, endColumn: 20, checker: 'mypy', color: '#ef4444' }),
-        diag({ line: 4, character: 21, endLine: 4, endColumn: 25, checker: 'pyright', color: '#3b82f6' }),
-        diag({ line: 4, character: 30, endLine: 4, endColumn: 34, checker: 'pyright', color: '#3b82f6' }),
+        diag({ line: 4, character: 5, endLine: 5, endColumn: 20, checkerLabel: 'mypy', color: '#ef4444' }),
+        diag({ line: 4, character: 21, endLine: 4, endColumn: 25, checkerLabel: 'pyright', color: '#3b82f6' }),
+        diag({ line: 4, character: 30, endLine: 4, endColumn: 34, checkerLabel: 'pyright', color: '#3b82f6' }),
       ],
       () => 34,
     )
@@ -287,8 +286,8 @@ describe('layoutSquiggles', () => {
   it('draws the earlier-starting checker nearer the text than a later overlapping one', () => {
     const { placements } = layoutSquiggles(
       [
-        diag({ line: 4, character: 5, endLine: 4, endColumn: 34, checker: 'mypy', color: '#ef4444' }),
-        diag({ line: 4, character: 21, endLine: 4, endColumn: 25, checker: 'pyright', color: '#3b82f6' }),
+        diag({ line: 4, character: 5, endLine: 4, endColumn: 34, checkerLabel: 'mypy', color: '#ef4444' }),
+        diag({ line: 4, character: 21, endLine: 4, endColumn: 25, checkerLabel: 'pyright', color: '#3b82f6' }),
       ],
       () => 34,
     )

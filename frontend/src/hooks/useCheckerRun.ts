@@ -88,7 +88,6 @@ export function useCheckerRun({ files, targetVersion, isReady, canRun }: UseChec
         for (const d of result.diagnostics) {
           newDiags.push({
             file: d.file,
-            checker: result.checker,
             checkerLabel: info.label,
             color: info.color,
             line: d.line,
