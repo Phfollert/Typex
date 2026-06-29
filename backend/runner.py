@@ -1,7 +1,7 @@
 import asyncio
 import os
+import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -65,45 +65,28 @@ def _kill(proc: asyncio.subprocess.Process) -> None:
         pass
 
 
-# Only these are forwarded to checker subprocesses; everything else (the app's
-# venv markers, and any injected secrets such as Fly env vars) is withheld.
-# HOME is set explicitly to an empty per-run dir, not forwarded.
-_ENV_PASSTHROUGH = (
-    "TMPDIR",
-    "LANG",
-    "LC_ALL",
-    "LC_CTYPE",
-    "SSL_CERT_FILE",
-    "SSL_CERT_DIR",
-)
+def _resolve_node_dir() -> str | None:
+    """The directory containing `node`.
+
+    pyright is a Node program and finds `node` via PATH; the other checkers need
+    nothing from PATH.."""
+    override = os.environ.get("TYPEX_NODE_DIR")
+    if override:
+        return override
+    node = shutil.which("node")
+    return str(Path(node).parent) if node else None
+
+
+NODE_DIR = _resolve_node_dir()
 
 
 def _sandbox_env(home: str) -> dict[str, str]:
-    """A minimal, allow-listed environment for checker subprocesses.
+    """Build the checker subprocess environment from scratch (nothing inherited).
 
-    Deny-by-default: the server runs under `uv run` (its venv on PATH +
-    VIRTUAL_ENV) and may carry injected secrets, none of which a checker should
-    see. We forward only a small safe set plus a PATH with the app venv removed
-    -- removed rather than hardcoded so `node` (needed by pyright) keeps its real
-    location across dev and the container. With the app venv hidden, checkers
-    that discover an interpreter from the environment (pyright/ty/pyrefly) no
-    longer resolve the app's dependencies, matching mypy's own-interpreter view.
-
-    `home` is an empty per-run directory used as HOME/XDG_CONFIG_HOME so checkers
-    can't pick up user-level config (e.g. ~/.config/mypy, ~/.npmrc).
+    PATH holds only the `node` directory (needed by pyright); HOME is an empty
+    per-run directory.
     """
-    src = os.environ
-    env = {k: src[k] for k in _ENV_PASSTHROUGH if k in src}
-    env["HOME"] = home
-    env["XDG_CONFIG_HOME"] = str(Path(home) / ".config")
-    hidden = {str(Path(p) / "bin") for p in (sys.prefix, sys.base_prefix)}
-    hidden.add(str(Path(sys.executable).parent))
-    venv = src.get("VIRTUAL_ENV")
-    if venv:
-        hidden.add(str(Path(venv) / "bin"))
-    path = [p for p in src.get("PATH", "").split(os.pathsep) if p and p not in hidden]
-    env["PATH"] = os.pathsep.join(path) or os.defpath.lstrip(os.pathsep)
-    return env
+    return {"HOME": home, "PATH": NODE_DIR or ""}
 
 
 def _in_workspace(file: str) -> bool:

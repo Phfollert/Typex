@@ -1,5 +1,4 @@
 import asyncio
-import os
 import time
 from unittest.mock import AsyncMock, MagicMock
 
@@ -156,10 +155,9 @@ def test_run_checker_sandboxes_subprocess_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("VIRTUAL_ENV", "/app/.venv")
-    monkeypatch.setenv("PATH", os.pathsep.join(["/app/.venv/bin", "/usr/bin", "/bin"]))
     monkeypatch.setenv("PYTHONPATH", "/leak")
-    monkeypatch.setenv("FLY_API_TOKEN", "super-secret")
     monkeypatch.setenv("HOME", "/home/serveruser")
+    monkeypatch.setattr("runner.NODE_DIR", "/opt/node/bin")
     csx = AsyncMock(return_value=_mock_proc(stdout=[], stderr=[]))
     monkeypatch.setattr(asyncio, "create_subprocess_exec", csx)
     spec = CheckerSpec(
@@ -173,16 +171,14 @@ def test_run_checker_sandboxes_subprocess_env(
     asyncio.run(run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FakeAdapter()))
 
     env = csx.call_args.kwargs["env"]
-    # The app venv (VIRTUAL_ENV + its bin on PATH) must be hidden from checkers.
+    # PATH is only the node dir, so the app venv can never be on it.
+    assert env["PATH"] == "/opt/node/bin"
     assert "VIRTUAL_ENV" not in env
     assert "PYTHONPATH" not in env
-    assert "/app/.venv/bin" not in env["PATH"].split(os.pathsep)
-    assert "/usr/bin" in env["PATH"].split(os.pathsep)
-    # Deny-by-default: arbitrary/secret vars are not forwarded.
-    assert "FLY_API_TOKEN" not in env
-    # HOME is replaced with an empty per-run dir, not the server's home.
+    # HOME is replaced with an empty per-run dir, not the server's home, and the
+    # server's XDG_CONFIG_HOME is not forwarded.
     assert env["HOME"] != "/home/serveruser"
-    assert env["XDG_CONFIG_HOME"].startswith(env["HOME"])
+    assert "XDG_CONFIG_HOME" not in env
 
 
 @pytest.mark.slow
