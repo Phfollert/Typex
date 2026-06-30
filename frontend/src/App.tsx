@@ -4,15 +4,16 @@ import { useRuffValidator } from '@/hooks/useRuffValidator';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useCheckerRun } from '@/hooks/useCheckerRun';
 import { useExamples } from '@/hooks/useExamples';
-import { readInitialShareState } from '@/share/initialState';
-import { CURRENT_SHARE_VERSION } from '@/share/types';
+import { useAutosave } from '@/hooks/useAutosave';
+import { readInitialState } from '@/share/initialState';
+import { CURRENT_SHARE_VERSION, type ShareState } from '@/share/types';
 import Toolbar from '@/components/Toolbar';
 import EditorPane from '@/components/EditorPane';
 import ExamplePicker from '@/components/ExamplePicker';
 import ShareButton from '@/components/ShareButton';
 
 function App() {
-  const [initial] = useState(readInitialShareState);
+  const [initial] = useState(readInitialState);
   const { isReady, targetVersion, setTargetVersion, validateCode } = useRuffValidator(initial?.py ?? 'py312');
   const workspace = useWorkspace({
     validateCode,
@@ -29,6 +30,14 @@ function App() {
     initialSelectedCheckerIds: initial?.checkers ?? null,
   });
   const exampleEntries = useExamples();
+
+  const shareState: ShareState = {
+    v: CURRENT_SHARE_VERSION,
+    files: workspace.field.files,
+    checkers: checkerRun.field.selectedCheckerIds,
+    py: targetVersion,
+  };
+  useAutosave(shareState);
 
   const { files, ruffByFile, addingFile, newFileName, fileInputRef } = workspace.field;
   const fileNames = Object.keys(files);
@@ -47,14 +56,7 @@ function App() {
           </div>
           <h1>Type Explorer</h1>
         </div>
-        <ShareButton
-          state={{
-            v: CURRENT_SHARE_VERSION,
-            files: workspace.field.files,
-            checkers: checkerRun.field.selectedCheckerIds,
-            py: targetVersion,
-          }}
-        />
+        <ShareButton state={shareState} />
       </div>
 
       <div className="main-content">
