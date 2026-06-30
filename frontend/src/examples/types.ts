@@ -11,7 +11,6 @@ export const ExampleEntrySchema = z.object({
 export type ExampleEntry = z.infer<typeof ExampleEntrySchema>;
 
 export interface LoadedExample {
-  files: Record<string, string>; // basename -> contents
-  order: string[];               // basenames, in files[] order (pane order)
+  files: Record<string, string>; // basename -> contents, in pane order
   pythonVersion?: string;
 }

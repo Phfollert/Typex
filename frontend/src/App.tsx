@@ -20,7 +20,6 @@ function App() {
     targetVersion,
     setTargetVersion,
     initialFiles: initial?.files,
-    initialPanes: initial?.panes,
   });
   const checkerRun = useCheckerRun({
     files: workspace.field.files,
@@ -31,7 +30,8 @@ function App() {
   });
   const exampleEntries = useExamples();
 
-  const { files, panes, ruffByFile, addingFile, newFileName, fileInputRef } = workspace.field;
+  const { files, ruffByFile, addingFile, newFileName, fileInputRef } = workspace.field;
+  const fileNames = Object.keys(files);
   const ws = workspace.events;
   const { checkers, selectedCheckerIds, typecheckerDiagnostics } = checkerRun.field;
 
@@ -51,7 +51,6 @@ function App() {
           state={{
             v: CURRENT_SHARE_VERSION,
             files: workspace.field.files,
-            panes: workspace.field.panes,
             checkers: checkerRun.field.selectedCheckerIds,
             py: targetVersion,
           }}
@@ -102,15 +101,13 @@ function App() {
             />
           </div>
           <div className="editor-split">
-            {panes.map((file, i) => (
+            {fileNames.map((file) => (
               <EditorPane
-                key={i}
+                key={file}
                 file={file}
-                fileNames={Object.keys(files)}
                 content={files[file] ?? ''}
                 onChangeContent={(content) => ws.updateFileContent(file, content)}
-                onSelectFile={(f) => ws.selectFileForPane(i, f)}
-                onClose={panes.length > 1 ? () => ws.closePane(i) : null}
+                onClose={fileNames.length > 1 ? () => ws.closeFile(file) : null}
                 ruffDiagnostics={ruffByFile[file] ?? []}
                 typecheckerDiagnostics={typecheckerDiagnostics.filter((d) => d.file === file)}
                 isReady={isReady}

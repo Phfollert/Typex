@@ -40,7 +40,6 @@ describe('createShareLink', () => {
   const sample: ShareState = {
     v: 1,
     files: { 'main.py': 'x: int = 1\n', 'lib.py': 'def f(): ...\n' },
-    panes: ['main.py', 'lib.py'],
     checkers: ['mypy-1.20.2', 'pyright-1.1.409'],
     py: 'py312',
   };

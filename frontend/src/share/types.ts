@@ -3,8 +3,7 @@
 
 export interface ShareState {
   v: 1; // payload schema version; the discriminant loadShareState() switches on
-  files: Record<string, string>;
-  panes: string[];
+  files: Record<string, string>; // insertion order is the pane order
   checkers: string[];
   py: string; // Ruff target form, e.g. "py312"
 }
@@ -28,7 +27,6 @@ export function loadShareState(raw: unknown): ShareState | null {
 function isValidState(obj: Record<string, unknown>): boolean {
   if (typeof obj.py !== 'string') return false;
   if (!isStringRecord(obj.files)) return false;
-  if (!isStringArray(obj.panes)) return false;
   if (!isStringArray(obj.checkers)) return false;
   return true;
 }

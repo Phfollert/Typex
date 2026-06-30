@@ -112,19 +112,11 @@
   background: var(--bg-secondary);
 }
 
-.file-select {
-  background: var(--bg-tertiary);
+.file-name {
   color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
   padding: 0.15rem 0.4rem;
   font-size: 0.8rem;
   font-family: 'JetBrains Mono', monospace;
-  cursor: pointer;
-}
-
-.file-select option {
-  background: var(--bg-secondary);
 }
 
 .pane-close {

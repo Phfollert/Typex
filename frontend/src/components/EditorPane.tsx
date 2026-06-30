@@ -4,10 +4,8 @@ import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
 interface EditorPaneProps {
   file: string;
-  fileNames: string[];
   content: string;
   onChangeContent: (content: string) => void;
-  onSelectFile: (file: string) => void;
   onClose: (() => void) | null;
   ruffDiagnostics: RuffDiagnostic[];
   typecheckerDiagnostics: EditorDiagnostic[];
@@ -16,10 +14,8 @@ interface EditorPaneProps {
 
 const EditorPane: React.FC<EditorPaneProps> = ({
   file,
-  fileNames,
   content,
   onChangeContent,
-  onSelectFile,
   onClose,
   ruffDiagnostics,
   typecheckerDiagnostics,
@@ -28,17 +24,9 @@ const EditorPane: React.FC<EditorPaneProps> = ({
   return (
     <div className="editor-column">
       <div className="editor-column-header">
-        <select
-          className="file-select"
-          value={file}
-          onChange={(e) => onSelectFile(e.target.value)}
-        >
-          {fileNames.map((name) => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
+        <span className="file-name">{file}</span>
         {onClose && (
-          <button className="pane-close" onClick={onClose} title="Close pane">✕</button>
+          <button className="pane-close" onClick={onClose} title="Delete file">✕</button>
         )}
       </div>
       <CodeEditor

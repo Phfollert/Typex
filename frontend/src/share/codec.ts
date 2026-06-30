@@ -5,26 +5,8 @@ import { loadShareState, type ShareState } from './types';
 // from the schema `v` field. Bump this if the encoding itself ever changes.
 const FORMAT_MARKER = '1';
 
-// Stable key order so identical state always encodes to identical bytes.
-function canonicalize(state: ShareState): string {
-  return JSON.stringify({
-    v: state.v,
-    files: sortedRecord(state.files),
-    panes: state.panes,
-    checkers: state.checkers,
-    py: state.py,
-  });
-}
-
-function sortedRecord(record: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const key of Object.keys(record).sort()) out[key] = record[key];
-  return out;
-}
-
 export function encodeState(state: ShareState): string {
-  const json = canonicalize(state);
-  const compressed = deflate(new TextEncoder().encode(json));
+  const compressed = deflate(new TextEncoder().encode(JSON.stringify(state)));
   return FORMAT_MARKER + bytesToBase64Url(compressed);
 }
 

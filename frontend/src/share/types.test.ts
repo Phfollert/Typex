@@ -4,7 +4,6 @@ import { loadShareState } from '@/share/types';
 const valid = {
   v: 1,
   files: { 'main.py': 'x = 1' },
-  panes: ['main.py'],
   checkers: ['mypy-1.20.2'],
   py: 'py312',
 };
@@ -24,7 +23,6 @@ describe('loadShareState', () => {
   });
 
   it('rejects wrong field types', () => {
-    expect(loadShareState({ ...valid, panes: 'main.py' })).toBeNull();
     expect(loadShareState({ ...valid, files: { 'main.py': 1 } })).toBeNull();
     expect(loadShareState({ ...valid, py: 312 })).toBeNull();
     expect(loadShareState({ ...valid, checkers: [1, 2] })).toBeNull();

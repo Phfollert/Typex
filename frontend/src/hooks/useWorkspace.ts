@@ -22,7 +22,6 @@ interface UseWorkspaceArgs {
   targetVersion: string;
   setTargetVersion: (version: string) => void;
   initialFiles?: Record<string, string>;
-  initialPanes?: string[];
 }
 
 export function useWorkspace({
@@ -31,13 +30,9 @@ export function useWorkspace({
   targetVersion,
   setTargetVersion,
   initialFiles,
-  initialPanes,
 }: UseWorkspaceArgs) {
   const [files, setFiles] = useState<Record<string, string>>(
     () => initialFiles ?? { [DEFAULT_FILE]: DEFAULT_CODE }
-  );
-  const [panes, setPanes] = useState<string[]>(
-    () => initialPanes ?? [DEFAULT_FILE]
   );
   const [ruffByFile, setRuffByFile] = useState<Record<string, RuffDiagnostic[]>>({});
   const [addingFile, setAddingFile] = useState(false);
@@ -70,12 +65,17 @@ export function useWorkspace({
     validateFile(name, content);
   };
 
-  const selectFileForPane = (paneIndex: number, file: string) => {
-    setPanes((prev) => prev.map((f, i) => (i === paneIndex ? file : f)));
-  };
-
-  const closePane = (paneIndex: number) => {
-    setPanes((prev) => prev.filter((_, i) => i !== paneIndex));
+  const closeFile = (name: string) => {
+    setFiles((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+    setRuffByFile((prev) => {
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
   };
 
   const startAddFile = () => {
@@ -97,7 +97,6 @@ export function useWorkspace({
       setFiles((prev) => ({ ...prev, [name]: '' }));
       validateFile(name, '');
     }
-    setPanes((prev) => [...prev, name]);
   };
 
   const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -114,14 +113,6 @@ export function useWorkspace({
     for (const [name, content] of Object.entries(uploaded)) {
       validateFile(name, content);
     }
-
-    // Open one pane per uploaded file, with the primary (non-_ .py) first.
-    const names = Object.keys(uploaded);
-    const primary =
-      names.find((n) => n.endsWith('.py') && !n.startsWith('_')) ??
-      names.find((n) => n.endsWith('.py')) ??
-      names[0];
-    setPanes([primary, ...names.filter((n) => n !== primary)]);
   };
 
   const loadExampleEntry = async (entry: ExampleEntry) => {
@@ -134,7 +125,6 @@ export function useWorkspace({
     }
 
     setFiles(loaded.files);
-    setPanes(loaded.order);
     if (loaded.pythonVersion) {
       setTargetVersion(pythonToRuffVersion(loaded.pythonVersion));
     }
@@ -148,12 +138,11 @@ export function useWorkspace({
   );
 
   return {
-    field: { files, panes, ruffByFile, addingFile, newFileName, fileInputRef },
+    field: { files, ruffByFile, addingFile, newFileName, fileInputRef },
     config: { hasSyntaxErrors, canRun },
     events: {
       updateFileContent,
-      selectFileForPane,
-      closePane,
+      closeFile,
       startAddFile,
       cancelAddFile,
       confirmAddFile,

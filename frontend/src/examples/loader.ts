@@ -25,10 +25,9 @@ export async function loadExample(entry: ExampleEntry): Promise<LoadedExample> {
       return res.text();
     })
   );
-  const order = entry.files.map(basename);
   const files: Record<string, string> = {};
-  order.forEach((name, i) => {
+  entry.files.map(basename).forEach((name, i) => {
     files[name] = contents[i];
   });
-  return { files, order, pythonVersion: entry.pythonVersion };
+  return { files, pythonVersion: entry.pythonVersion };
 }
