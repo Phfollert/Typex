@@ -1,11 +1,15 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
-import { bgSetterClass, ensureLaneStyles } from '@/squiggle';
+import { bgSetterClass, ensureLaneStyles, LANE_HEIGHT_PX } from '@/squiggle';
 import { layoutSquiggles, type HoverBlock } from '@/squiggleLanes';
 import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
 const SEV_LABEL_BY_SEVERITY = { error: '✕ error', warning: '⚠ warning', information: 'ⓘ info' } as const;
+
+// Given the default font size, this is the number of lanes that fit below the text without
+// needing extra padding. If more lanes are needed, we add a view zone to create extra space.
+const LANES_THAT_FIT_BELOW_TEXT = 2;
 
 const hoverMarkdown = (h: HoverBlock) => ({
   value: `**${h.checkerLabel}** · ${SEV_LABEL_BY_SEVERITY[h.severity]}\n\n${h.message}`,
@@ -69,9 +73,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
       viewZoneIdsRef.current = [];
 
       for (const [line, depth] of maxDepthByLine) {
-        const height = depth * 3;
-        if (height > 6) {
-          const extraSpace = height - 4;
+        if (depth > LANES_THAT_FIT_BELOW_TEXT) {
+          const extraSpace = (depth - LANES_THAT_FIT_BELOW_TEXT) * LANE_HEIGHT_PX;
           const id = accessor.addZone({
             afterLineNumber: line,
             heightInPx: extraSpace,

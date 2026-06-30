@@ -4,6 +4,9 @@
 
 import type { SquiggleShape } from '@/types';
 
+// Height of one lane's squiggle strip; also the vertical step between stacked lanes.
+export const LANE_HEIGHT_PX = 3;
+
 let styleEl: HTMLStyleElement | null = null;
 const classCache = new Map<string, string>();
 let counter = 0;
@@ -62,14 +65,14 @@ export function ensureLaneStyles(maxLane: number): void {
   baseNode.data = `.squiggly-base {
 ${vars}
   background-image: ${layers((i) => `var(--bg-${i + 1})`)};
-  background-position: ${layers((i) => `left calc(100% - ${i * 3}px)`)};
+  background-position: ${layers((i) => `left calc(100% - ${i * LANE_HEIGHT_PX}px)`)};
   background-repeat: ${layers(() => 'repeat-x')};
-  background-size: ${layers(() => 'auto 3px')};
+  background-size: ${layers(() => `auto ${LANE_HEIGHT_PX}px`)};
 }`;
 
   for (let n = laneMax + 1; n <= maxLane; n++) {
     sheet.appendChild(
-      document.createTextNode(`.squiggly-depth-${n} { padding-bottom: ${n * 3}px; }`)
+      document.createTextNode(`.squiggly-depth-${n} { padding-bottom: ${n * LANE_HEIGHT_PX}px; }`)
     );
   }
 
