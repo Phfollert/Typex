@@ -1,20 +1,39 @@
+import { useState } from 'react';
 import './App.css';
 import { useRuffValidator } from '@/hooks/useRuffValidator';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useCheckerRun } from '@/hooks/useCheckerRun';
 import { useExamples } from '@/hooks/useExamples';
+import { useShare } from '@/hooks/useShare';
+import { readInitialShareState } from '@/share/initialState';
 import Toolbar from '@/components/Toolbar';
 import EditorPane from '@/components/EditorPane';
 import ExamplePicker from '@/components/ExamplePicker';
+import ShareButton from '@/components/ShareButton';
 
 function App() {
-  const { isReady, targetVersion, setTargetVersion, validateCode } = useRuffValidator('py312');
-  const workspace = useWorkspace({ validateCode, isReady, targetVersion, setTargetVersion });
+  const [initial] = useState(readInitialShareState);
+  const { isReady, targetVersion, setTargetVersion, validateCode } = useRuffValidator(initial?.py ?? 'py312');
+  const workspace = useWorkspace({
+    validateCode,
+    isReady,
+    targetVersion,
+    setTargetVersion,
+    initialFiles: initial?.files,
+    initialPanes: initial?.panes,
+  });
   const checkerRun = useCheckerRun({
     files: workspace.field.files,
     targetVersion,
     isReady,
     canRun: workspace.config.canRun,
+    initialSelectedCheckerIds: initial?.checkers ?? null,
+  });
+  const share = useShare({
+    files: workspace.field.files,
+    panes: workspace.field.panes,
+    selectedCheckerIds: checkerRun.field.selectedCheckerIds,
+    targetVersion,
   });
   const exampleEntries = useExamples();
 
@@ -34,6 +53,7 @@ function App() {
           </div>
           <h1>Type Explorer</h1>
         </div>
+        <ShareButton status={share.config.status} onShare={share.events.share} />
       </div>
 
       <div className="main-content">

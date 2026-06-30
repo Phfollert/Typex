@@ -21,11 +21,24 @@ interface UseWorkspaceArgs {
   isReady: boolean;
   targetVersion: string;
   setTargetVersion: (version: string) => void;
+  initialFiles?: Record<string, string>;
+  initialPanes?: string[];
 }
 
-export function useWorkspace({ validateCode, isReady, targetVersion, setTargetVersion }: UseWorkspaceArgs) {
-  const [files, setFiles] = useState<Record<string, string>>({ [DEFAULT_FILE]: DEFAULT_CODE });
-  const [panes, setPanes] = useState<string[]>([DEFAULT_FILE]);
+export function useWorkspace({
+  validateCode,
+  isReady,
+  targetVersion,
+  setTargetVersion,
+  initialFiles,
+  initialPanes,
+}: UseWorkspaceArgs) {
+  const [files, setFiles] = useState<Record<string, string>>(
+    () => initialFiles ?? { [DEFAULT_FILE]: DEFAULT_CODE }
+  );
+  const [panes, setPanes] = useState<string[]>(
+    () => initialPanes ?? [DEFAULT_FILE]
+  );
   const [ruffByFile, setRuffByFile] = useState<Record<string, RuffDiagnostic[]>>({});
   const [addingFile, setAddingFile] = useState(false);
   const [newFileName, setNewFileName] = useState('');

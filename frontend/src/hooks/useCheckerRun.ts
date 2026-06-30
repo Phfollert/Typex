@@ -14,9 +14,16 @@ interface UseCheckerRunArgs {
   targetVersion: string;
   isReady: boolean;
   canRun: boolean;
+  initialSelectedCheckerIds?: string[] | null;
 }
 
-export function useCheckerRun({ files, targetVersion, isReady, canRun }: UseCheckerRunArgs) {
+export function useCheckerRun({
+  files,
+  targetVersion,
+  isReady,
+  canRun,
+  initialSelectedCheckerIds,
+}: UseCheckerRunArgs) {
   const [checkers, setCheckers] = useState<CheckerInfo[]>([]);
   const [selectedCheckerIds, setSelectedCheckerIds] = useState<string[]>([]);
   const [typecheckerDiagnostics, setTypecheckerDiagnostics] = useState<EditorDiagnostic[]>([]);
@@ -38,9 +45,17 @@ export function useCheckerRun({ files, targetVersion, isReady, canRun }: UseChec
       })
       .then((data) => {
         setCheckers(data);
-        setSelectedCheckerIds(data.map((c) => c.id));
+        const available = new Set(data.map((c) => c.id));
+        // A restored selection may name a checker version that no longer exists;
+        // keep only the available ones, else default to all.
+        setSelectedCheckerIds(
+          initialSelectedCheckerIds
+            ? initialSelectedCheckerIds.filter((id) => available.has(id))
+            : data.map((c) => c.id)
+        );
       })
       .catch((err) => console.error('Failed to load checkers:', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clear squiggles on any file change.
