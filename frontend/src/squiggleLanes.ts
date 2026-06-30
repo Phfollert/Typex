@@ -88,12 +88,9 @@ interface Span {
   hovers: HoverBlock[]
 }
 
-// Flatten one checker's overlapping findings into non-overlapping spans, split
-// at every finding boundary. Each span uses the shape of the highest-severity
-// finding covering it (error > warning > information), so an error masks a
-// warning where they overlap and the warning still shows past the error's end.
-// Each span's hover lists exactly the findings covering that column range.
-// Findings at an identical range collapse into one span.
+// Split overlapping findings into non-overlapping spans at every boundary. Each
+// span takes the highest-severity shape covering it (so an error masks a warning
+// in the overlap) and a hover listing exactly the findings covering it.
 function resolveSpans(segs: Segment[]): Span[] {
   const byLine = new Map<number, Segment[]>()
   for (const s of segs) {
@@ -132,73 +129,67 @@ export interface SquiggleLayout {
   maxLane: number
 }
 
-// A finding fills the whole contiguous reading-order range from its start to its
-// end (middle rows are full-width), so its coverage IS the half-open interval
-// [(line,col), (endLine,endCol)) in the totally-ordered (line, col) space. That
-// lets lanes be assigned on whole findings with one interval-overlap test,
-// instead of per-line segments -- so a multi-line finding is a single interval
-// on a single lane (continuity is automatic), and the per-line split is left to
-// rendering.
-//
-// The lane unit is a "run": same-checker findings whose intervals overlap are
-// unioned, so they share one lane and resolveSpans merges them to the highest
-// severity; a checker's disjoint findings stay in separate runs and can take
-// different lanes. Runs are placed in document order, each taking the lowest
-// free lane. Lane 1 is closest to the text; overlapping runs stack outward (the
-// render layer inverts lane -> depth, see CodeEditor/ensureLaneStyles).
-const posKey = (line: number, column: number) => line * 10_000_000 + column
+// A document position, compared lexicographically (line, then column).
+type Pos = [line: number, column: number]
+const cmpPos = ([al, ac]: Pos, [bl, bc]: Pos) => al - bl || ac - bc
+
+interface Interval {
+  start: Pos
+  end: Pos
+}
+
+// A finding's coverage is the contiguous range [(line,col), (endLine,endCol))
+// (middle rows are full-width), so overlap is one lexicographic comparison and a
+// multi-line finding stays one interval on one lane.
+const overlaps = (a: Interval, b: Interval) => cmpPos(a.start, b.end) < 0 && cmpPos(b.start, a.end) < 0
+
+// A run is one checker's overlapping findings merged onto one lane; its disjoint
+// findings form separate runs and can take different lanes.
+interface Run extends Interval {
+  segs: Segment[]
+  checkerLabel: string
+}
 
 export function layoutSquiggles(
   diagnostics: EditorDiagnostic[],
   lineEndColumn: (line: number) => number,
 ): SquiggleLayout {
-  // One interval per finding, carrying its segments for the render-time split.
-  const findings = diagnostics.map((d) => {
+  const byChecker = new Map<string, Run[]>()
+  for (const d of diagnostics) {
     const segs = expandToSegments([d], lineEndColumn)
     const first = segs[0]
     const last = segs[segs.length - 1]
-    return {
+    const run: Run = {
       segs,
       checkerLabel: d.checkerLabel,
-      startKey: posKey(first.line, first.startColumn),
-      endKey: posKey(last.line, last.endColumn),
+      start: [first.line, first.startColumn],
+      end: [last.line, last.endColumn],
     }
-  })
-
-  const overlaps = (a: { startKey: number; endKey: number }, b: { startKey: number; endKey: number }) =>
-    a.startKey < b.endKey && b.startKey < a.endKey
-
-  // Union same-checker findings whose intervals overlap.
-  const parent = findings.map((_, i) => i)
-  const find = (x: number): number => {
-    while (parent[x] !== x) x = parent[x] = parent[parent[x]]
-    return x
+    const group = byChecker.get(d.checkerLabel)
+    if (group) group.push(run)
+    else byChecker.set(d.checkerLabel, [run])
   }
-  for (let i = 0; i < findings.length; i++) {
-    for (let j = i + 1; j < findings.length; j++) {
-      if (findings[i].checkerLabel === findings[j].checkerLabel && overlaps(findings[i], findings[j])) {
-        parent[find(i)] = find(j)
+
+  // Merge each checker's overlapping findings into runs (sweep in start order).
+  const runs: Run[] = []
+  for (const group of byChecker.values()) {
+    group.sort((a, b) => cmpPos(a.start, b.start))
+    let open: Run | null = null
+    for (const f of group) {
+      if (open && cmpPos(f.start, open.end) < 0) {
+        open.segs.push(...f.segs)
+        if (cmpPos(f.end, open.end) > 0) open.end = f.end
+      } else {
+        open = f
+        runs.push(f)
       }
     }
   }
 
-  type Run = { segs: Segment[]; startKey: number; endKey: number }
-  const runMap = new Map<number, Run>()
-  for (let i = 0; i < findings.length; i++) {
-    const f = findings[i]
-    const run = runMap.get(find(i))
-    if (run) {
-      run.segs.push(...f.segs)
-      run.startKey = Math.min(run.startKey, f.startKey)
-      run.endKey = Math.max(run.endKey, f.endKey)
-    } else {
-      runMap.set(find(i), { segs: [...f.segs], startKey: f.startKey, endKey: f.endKey })
-    }
-  }
-
-  const runs = [...runMap.values()].sort((a, b) => a.startKey - b.startKey || a.endKey - b.endKey)
-
-  const placed: { startKey: number; endKey: number; lane: number }[] = []
+  // Each run takes the lowest free lane. Lane 1 is closest to the text (the
+  // render layer inverts lane -> depth, see CodeEditor/ensureLaneStyles).
+  runs.sort((a, b) => cmpPos(a.start, b.start) || cmpPos(a.end, b.end) || a.checkerLabel.localeCompare(b.checkerLabel))
+  const placed: (Interval & { lane: number })[] = []
   const placements: PlacedSegment[] = []
   let maxLane = 0
   for (const run of runs) {
@@ -206,7 +197,7 @@ export function layoutSquiggles(
     for (const p of placed) if (overlaps(run, p)) taken.add(p.lane)
     let lane = 1
     while (taken.has(lane)) lane++
-    placed.push({ startKey: run.startKey, endKey: run.endKey, lane })
+    placed.push({ start: run.start, end: run.end, lane })
     for (const span of resolveSpans(run.segs)) placements.push({ ...span, lane })
     if (lane > maxLane) maxLane = lane
   }

@@ -59,17 +59,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
       newDecorations,
     );
 
-    const maxLaneByLine = new Map<number, number>();
+    const maxDepthByLine = new Map<number, number>();
     for (const p of placements) {
-      maxLaneByLine.set(p.line, Math.max(maxLaneByLine.get(p.line) ?? 0, depthOf(p.lane)));
+      maxDepthByLine.set(p.line, Math.max(maxDepthByLine.get(p.line) ?? 0, depthOf(p.lane)));
     }
 
     editorInstance.changeViewZones((accessor: editor.IViewZoneChangeAccessor) => {
       viewZoneIdsRef.current.forEach((id) => accessor.removeZone(id));
       viewZoneIdsRef.current = [];
 
-      for (const [line, lane] of maxLaneByLine) {
-        const height = lane * 3;
+      for (const [line, depth] of maxDepthByLine) {
+        const height = depth * 3;
         if (height > 6) {
           const extraSpace = height - 4;
           const id = accessor.addZone({
