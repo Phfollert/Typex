@@ -2,7 +2,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.app import create_app, get_checker_service
+from app.app import create_app, get_checker_service, get_share_store
+from share_store import make_share_store
+from utils.s3_object_store import ObjectStoreError
 from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
 from runner import (
@@ -215,3 +217,64 @@ def test_request_over_size_limit_returns_413(
         json={"files": {"main.py": "x = 1\n" * 1000}, "python_version": "3.12"},
     )
     assert resp.status_code == 413
+
+
+@pytest.fixture
+def share_client(app_: FastAPI) -> TestClient:
+    store = make_share_store()
+    app_.dependency_overrides[get_share_store] = lambda: store
+    return TestClient(app_)
+
+
+def test_share_round_trip(share_client: TestClient) -> None:
+    created = share_client.post("/api/share", content=b"1deadbeef")
+    assert created.status_code == 200
+    body = created.json()
+    assert body["url"] == f"/s/{body['id']}"
+
+    fetched = share_client.get(f"/api/share/{body['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json() == {"payload": "1deadbeef"}
+    assert "immutable" in fetched.headers["cache-control"]
+
+
+def test_share_same_payload_same_id(share_client: TestClient) -> None:
+    first = share_client.post("/api/share", content=b"1same").json()
+    second = share_client.post("/api/share", content=b"1same").json()
+    assert first["id"] == second["id"]
+
+
+def test_share_empty_payload_returns_400(share_client: TestClient) -> None:
+    assert share_client.post("/api/share", content=b"").status_code == 400
+
+
+def test_share_oversize_returns_413(
+    share_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.app.MAX_SHARE_BYTES", 10)
+    resp = share_client.post("/api/share", content=b"x" * 11)
+    assert resp.status_code == 413
+
+
+def test_share_rejects_non_ascii(share_client: TestClient) -> None:
+    resp = share_client.post("/api/share", content=b"\xff\xfe")
+    assert resp.status_code == 400
+
+
+def test_share_unknown_id_returns_404(share_client: TestClient) -> None:
+    assert share_client.get("/api/share/doesnotexist").status_code == 404
+
+
+class _RaisingStore:
+    async def put(self, payload: bytes) -> str:
+        raise ObjectStoreError("backend unavailable")
+
+    async def get(self, id: str) -> bytes | None:
+        raise ObjectStoreError("backend unavailable")
+
+
+def test_share_storage_error_maps_to_503(app_: FastAPI) -> None:
+    app_.dependency_overrides[get_share_store] = lambda: _RaisingStore()
+    client = TestClient(app_)
+    assert client.post("/api/share", content=b"1ok").status_code == 503
+    assert client.get("/api/share/anyid").status_code == 503

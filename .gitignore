@@ -43,3 +43,7 @@ lerna-debug.log*
 
 # Deploy
 .vercel
+
+# Local env (the .example files are tracked; the real ones are not)
+.env
+.env.test

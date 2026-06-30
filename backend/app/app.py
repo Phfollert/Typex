@@ -1,3 +1,5 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -8,7 +10,9 @@ from pydantic import BaseModel
 from starlette.middleware.base import RequestResponseEndpoint
 
 from diagnostics import Diagnostic
+from share_store import ShareStore, make_share_store
 from registry import CHECKERS
+from utils.s3_object_store import ObjectStoreError
 from runner import (
     NormalizationError,
     CheckerOutputLimitError,
@@ -20,6 +24,8 @@ from runner import (
 from service import CheckerInfo, CheckerService
 
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
+MAX_SHARE_BYTES = 256 * 1024
+SHARE_CACHE_CONTROL = "public, max-age=31536000, immutable"
 STATIC_DIR = Path("static")
 
 router = APIRouter()
@@ -52,6 +58,22 @@ def get_checker_service() -> CheckerService:
 
 
 ServiceDep = Annotated[CheckerService, Depends(get_checker_service)]
+
+def get_share_store(request: Request) -> ShareStore:
+    store: ShareStore = request.app.state.share_store
+    return store
+
+
+ShareStoreDep = Annotated[ShareStore, Depends(get_share_store)]
+
+
+class ShareCreateResponse(BaseModel):
+    id: str
+    url: str
+
+
+class ShareGetResponse(BaseModel):
+    payload: str
 
 
 @router.get("/api/checkers")
@@ -87,6 +109,39 @@ async def typecheck(
     )
 
 
+@router.post("/api/share")
+async def create_share(request: Request, store: ShareStoreDep) -> ShareCreateResponse:
+    payload = await request.body()
+    if not payload:
+        raise HTTPException(status_code=400, detail="empty share payload")
+    if len(payload) > MAX_SHARE_BYTES:
+        raise HTTPException(status_code=413, detail="share payload too large")
+    # The store is opaque, but a share blob is the frontend's base64url codec text;
+    # rejecting non-ASCII here keeps the read side (which serves it as a JSON string)
+    # total instead of poisoning an id with a value that 500s on every GET.
+    try:
+        payload.decode("ascii")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="share payload must be ascii")
+    try:
+        id = await store.put(payload)
+    except ObjectStoreError:
+        raise HTTPException(status_code=503, detail="share storage unavailable")
+    return ShareCreateResponse(id=id, url=f"/s/{id}")
+
+
+@router.get("/api/share/{id}")
+async def get_share(id: str, store: ShareStoreDep, response: Response) -> ShareGetResponse:
+    try:
+        payload = await store.get(id)
+    except ObjectStoreError:
+        raise HTTPException(status_code=503, detail="share storage unavailable")
+    if payload is None:
+        raise HTTPException(status_code=404, detail="share not found")
+    response.headers["Cache-Control"] = SHARE_CACHE_CONTROL
+    return ShareGetResponse(payload=payload.decode("utf-8"))
+
+
 async def spa_fallback(full_path: str) -> FileResponse:
     candidate = STATIC_DIR / full_path
     if candidate.is_file():
@@ -94,8 +149,19 @@ async def spa_fallback(full_path: str) -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # Build the store at startup; shut its thread pool down on teardown.
+    store = make_share_store()
+    app.state.share_store = store
+    try:
+        yield
+    finally:
+        store.close()
+
+
 def create_app() -> FastAPI:
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
     app.middleware("http")(limit_request_size)
     app.include_router(router)
     app.mount(
