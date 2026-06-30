@@ -1,16 +1,14 @@
 import { useEffect } from 'react';
-import { encodeState } from '@/share/codec';
-import { persistPayload } from '@/share/persistence';
+import { persistState } from '@/share/persistence';
 import type { ShareState } from '@/share/types';
 
 const AUTOSAVE_DELAY = 500; // ms of inactivity before writing to storage
 
-// Debounced autosave of the workspace. The encoded payload is a stable string, so
-// the effect only re-fires when the content actually changes.
+// Debounced autosave of the workspace. Serialization happens inside the timeout,
+// so a burst of edits pays the cost once (when typing pauses), not per keystroke.
 export function useAutosave(state: ShareState): void {
-  const payload = encodeState(state);
   useEffect(() => {
-    const handle = window.setTimeout(() => persistPayload(payload), AUTOSAVE_DELAY);
+    const handle = window.setTimeout(() => persistState(state), AUTOSAVE_DELAY);
     return () => window.clearTimeout(handle);
-  }, [payload]);
+  }, [state]);
 }

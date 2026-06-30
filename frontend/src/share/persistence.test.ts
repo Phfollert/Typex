@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { persistPayload, readPersistedState, SESSION_KEY, LOCAL_KEY } from '@/share/persistence';
-import { encodeState } from '@/share/codec';
+import { persistState, readPersistedState, SESSION_KEY, LOCAL_KEY } from '@/share/persistence';
 import { stubStorage } from '@/test/storage';
 import type { ShareState } from '@/share/types';
 
@@ -12,24 +11,24 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('persistence', () => {
   it('round-trips a workspace through storage', () => {
-    persistPayload(encodeState(stateA));
+    persistState(stateA);
     expect(readPersistedState()).toEqual(stateA);
   });
 
-  it('writes to both sessionStorage and localStorage', () => {
-    persistPayload(encodeState(stateA));
-    expect(sessionStorage.getItem(SESSION_KEY)).not.toBeNull();
-    expect(localStorage.getItem(LOCAL_KEY)).not.toBeNull();
+  it('stores plain JSON in both sessionStorage and localStorage', () => {
+    persistState(stateA);
+    expect(JSON.parse(sessionStorage.getItem(SESSION_KEY)!)).toEqual(stateA);
+    expect(JSON.parse(localStorage.getItem(LOCAL_KEY)!)).toEqual(stateA);
   });
 
   it('prefers sessionStorage (this tab) over the localStorage draft', () => {
-    sessionStorage.setItem(SESSION_KEY, encodeState(stateA));
-    localStorage.setItem(LOCAL_KEY, encodeState(stateB));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(stateA));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(stateB));
     expect(readPersistedState()).toEqual(stateA);
   });
 
   it('falls back to the localStorage draft when sessionStorage is empty', () => {
-    localStorage.setItem(LOCAL_KEY, encodeState(stateB));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(stateB));
     expect(readPersistedState()).toEqual(stateB);
   });
 
@@ -37,8 +36,13 @@ describe('persistence', () => {
     expect(readPersistedState()).toBeNull();
   });
 
-  it('returns null for a corrupt stored payload', () => {
-    sessionStorage.setItem(SESSION_KEY, 'not-a-valid-payload');
+  it('returns null for non-JSON', () => {
+    sessionStorage.setItem(SESSION_KEY, 'not json');
+    expect(readPersistedState()).toBeNull();
+  });
+
+  it('returns null for JSON that is not a valid workspace', () => {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ v: 99 }));
     expect(readPersistedState()).toBeNull();
   });
 });

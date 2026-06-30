@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readInitialState } from '@/share/initialState';
 import { encodeState } from '@/share/codec';
-import { persistPayload } from '@/share/persistence';
+import { persistState } from '@/share/persistence';
 import { stubStorage } from '@/test/storage';
 import type { ShareState } from '@/share/types';
 
@@ -17,7 +17,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('readInitialState', () => {
   it('prefers a URL fragment over persisted state, and strips the fragment', () => {
-    localStorage.setItem('typex:latest', encodeState(draftState));
+    persistState(draftState);
     window.history.replaceState(null, '', '/#s=' + encodeState(linkState));
 
     expect(readInitialState()).toEqual(linkState);
@@ -25,7 +25,7 @@ describe('readInitialState', () => {
   });
 
   it('falls back to persisted state when there is no fragment', () => {
-    persistPayload(encodeState(draftState));
+    persistState(draftState);
     expect(readInitialState()).toEqual(draftState);
   });
 
@@ -34,7 +34,7 @@ describe('readInitialState', () => {
   });
 
   it('strips a corrupt fragment and falls through to persisted state', () => {
-    persistPayload(encodeState(draftState));
+    persistState(draftState);
     window.history.replaceState(null, '', '/#s=garbage');
 
     expect(readInitialState()).toEqual(draftState);
