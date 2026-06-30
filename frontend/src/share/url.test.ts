@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { parseShareUrl, buildFullLink, buildShortLink } from '@/share/url';
+import { parseShareUrl, buildFullLink, buildShortLink, createShareLink } from '@/share/url';
+import { decodeState } from '@/share/codec';
+import type { ShareState } from '@/share/types';
 
 describe('parseShareUrl', () => {
   it('reads a full-link payload from the fragment', () => {
@@ -30,5 +33,21 @@ describe('link builders', () => {
 
   it('builds a short link with the /s/ path', () => {
     expect(buildShortLink('https://typex.dev', 'Ab3xYz')).toBe('https://typex.dev/s/Ab3xYz');
+  });
+});
+
+describe('createShareLink', () => {
+  const sample: ShareState = {
+    v: 1,
+    files: { 'main.py': 'x: int = 1\n', 'lib.py': 'def f(): ...\n' },
+    panes: ['main.py', 'lib.py'],
+    checkers: ['mypy-1.20.2', 'pyright-1.1.409'],
+    py: 'py312',
+  };
+
+  it('produces a link that parses and decodes back to the original state', () => {
+    const parsed = parseShareUrl(new URL(createShareLink(sample)));
+    expect(parsed?.kind).toBe('full');
+    expect(decodeState((parsed as { payload: string }).payload)).toEqual(sample);
   });
 });

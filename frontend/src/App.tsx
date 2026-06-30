@@ -4,8 +4,8 @@ import { useRuffValidator } from '@/hooks/useRuffValidator';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useCheckerRun } from '@/hooks/useCheckerRun';
 import { useExamples } from '@/hooks/useExamples';
-import { useShare } from '@/hooks/useShare';
 import { readInitialShareState } from '@/share/initialState';
+import { CURRENT_SHARE_VERSION } from '@/share/types';
 import Toolbar from '@/components/Toolbar';
 import EditorPane from '@/components/EditorPane';
 import ExamplePicker from '@/components/ExamplePicker';
@@ -29,12 +29,6 @@ function App() {
     canRun: workspace.config.canRun,
     initialSelectedCheckerIds: initial?.checkers ?? null,
   });
-  const share = useShare({
-    files: workspace.field.files,
-    panes: workspace.field.panes,
-    selectedCheckerIds: checkerRun.field.selectedCheckerIds,
-    targetVersion,
-  });
   const exampleEntries = useExamples();
 
   const { files, panes, ruffByFile, addingFile, newFileName, fileInputRef } = workspace.field;
@@ -53,7 +47,15 @@ function App() {
           </div>
           <h1>Type Explorer</h1>
         </div>
-        <ShareButton status={share.config.status} onShare={share.events.share} />
+        <ShareButton
+          state={{
+            v: CURRENT_SHARE_VERSION,
+            files: workspace.field.files,
+            panes: workspace.field.panes,
+            checkers: checkerRun.field.selectedCheckerIds,
+            py: targetVersion,
+          }}
+        />
       </div>
 
       <div className="main-content">

@@ -1,6 +1,9 @@
 // Parses and builds share URLs. Full links carry the payload in the fragment
 // (#s=<payload>); short links use the /s/<id> path.
 
+import { encodeState } from './codec';
+import type { ShareState } from './types';
+
 const FRAGMENT_KEY = 's';
 
 export type ShareUrl =
@@ -26,4 +29,8 @@ export function buildFullLink(origin: string, payload: string): string {
 
 export function buildShortLink(origin: string, id: string): string {
   return `${origin}/s/${id}`;
+}
+
+export function createShareLink(state: ShareState): string {
+  return buildFullLink(window.location.origin, encodeState(state));
 }
