@@ -38,14 +38,21 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     );
     ensureLaneStyles(Math.max(maxLane, 1));
 
-    const newDecorations = placements.map((p) => ({
-      range: new monaco.Range(p.line, p.startColumn, p.line, p.endColumn),
-      options: {
-        isWholeLine: false,
-        inlineClassName: `squiggly-base squiggly-depth-${p.lane} ${bgSetterClass(p.color, p.lane, p.shape)}`,
-        hoverMessage: p.hovers.map(hoverMarkdown),
-      },
-    }));
+    // Lane 1 is closest to the text, but the CSS renders higher depth nearer the
+    // text, so invert: lane 1 -> deepest depth (maxLane).
+    const depthOf = (lane: number) => maxLane - lane + 1;
+
+    const newDecorations = placements.map((p) => {
+      const depth = depthOf(p.lane);
+      return {
+        range: new monaco.Range(p.line, p.startColumn, p.line, p.endColumn),
+        options: {
+          isWholeLine: false,
+          inlineClassName: `squiggly-base squiggly-depth-${depth} ${bgSetterClass(p.color, depth, p.shape)}`,
+          hoverMessage: p.hovers.map(hoverMarkdown),
+        },
+      };
+    });
 
     typecheckerDecorationsRef.current = editorInstance.deltaDecorations(
       typecheckerDecorationsRef.current,
@@ -54,7 +61,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
 
     const maxLaneByLine = new Map<number, number>();
     for (const p of placements) {
-      maxLaneByLine.set(p.line, Math.max(maxLaneByLine.get(p.line) ?? 0, p.lane));
+      maxLaneByLine.set(p.line, Math.max(maxLaneByLine.get(p.line) ?? 0, depthOf(p.lane)));
     }
 
     editorInstance.changeViewZones((accessor: editor.IViewZoneChangeAccessor) => {

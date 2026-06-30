@@ -188,9 +188,9 @@ describe('layoutSquiggles', () => {
     const mypy = placements.filter((p) => p.color === '#ff0000')
     expect(mypy).toHaveLength(3)
     expect(new Set(mypy.map((p) => p.lane)).size).toBe(1) // one continuous lane on lines 1, 2 and 3
-    // The finding starting on line 1 sits nearer the text (higher lane) than the
+    // The finding starting on line 1 sits nearer the text (lower lane) than the
     // one starting on line 2, where they meet.
-    expect(mypy[0].lane).toBeGreaterThan(laneByColor(placements, '#00ff00'))
+    expect(mypy[0].lane).toBeLessThan(laneByColor(placements, '#00ff00'))
   })
 
   // Ordering uses the document start, not the column on the overlap line. The
@@ -208,11 +208,11 @@ describe('layoutSquiggles', () => {
     const onLine5 = placements.filter((p) => p.line === 5)
     const mypy5 = onLine5.find((p) => p.color === '#ef4444')!
     const pyright5 = onLine5.find((p) => p.color === '#3b82f6')!
-    expect(mypy5.lane).toBeGreaterThan(pyright5.lane) // earlier start -> nearer the text
+    expect(mypy5.lane).toBeLessThan(pyright5.lane) // earlier start -> nearer the text (lower lane)
     expect(new Set(placements.filter((p) => p.color === '#ef4444').map((p) => p.lane)).size).toBe(1)
   })
 
-  it('reports the global max lane across lines and keeps a checker on its lane', () => {
+  it('reports the global max lane across lines', () => {
     const { placements, maxLane } = layoutSquiggles(
       [
         diag({ line: 1, column: 1, endColumn: 10, checkerLabel: 'pyright', color: '#00ff00' }),
@@ -224,7 +224,32 @@ describe('layoutSquiggles', () => {
     expect(maxLane).toBe(2) // line 1 stacks two; line 2 has one
     expect(placements.filter((p) => p.line === 1)).toHaveLength(2)
     expect(placements.filter((p) => p.line === 2)).toHaveLength(1)
-    expect(placements.find((p) => p.line === 2)!.lane).toBe(1) // mypy keeps lane 1
+    expect(placements.find((p) => p.line === 2)!.lane).toBe(1) // a lone span on line 2 takes lane 1
+  })
+
+  // A checker with two disjoint findings on a line must not be pinned to one
+  // shared lane: each finding takes its own lane, so another checker's wide span
+  // can sit between the text and the second finding with no empty lane between.
+  it("places a checker's disjoint findings on independent lanes (no gap)", () => {
+    const { placements } = layoutSquiggles(
+      [
+        diag({ column: 1, endColumn: 2, checkerLabel: 'mypy 1.10', color: '#a855f7' }),
+        diag({ column: 20, endColumn: 21, checkerLabel: 'mypy 1.10', color: '#a855f7' }),
+        diag({ column: 15, endColumn: 25, checkerLabel: 'pyrefly', color: '#f59e0b' }),
+      ],
+      () => 30,
+    )
+    const lanesAt = (col: number) =>
+      placements
+        .filter((p) => p.startColumn <= col && col < p.endColumn)
+        .map((p) => p.lane)
+        .sort((a, b) => a - b)
+    // At column 20: pyrefly (lane 1, closest) and mypy's 2nd finding on adjacent
+    // lanes -- contiguous, no empty lane between them.
+    expect(lanesAt(20)).toEqual([1, 2])
+    // mypy's two findings land on different lanes (the col-1 one is free at lane 1).
+    const mypyLanes = placements.filter((p) => p.color === '#a855f7').map((p) => p.lane)
+    expect(new Set(mypyLanes).size).toBe(2)
   })
 
   it('grows lanes past 4 when many checkers overlap', () => {
@@ -282,7 +307,7 @@ describe('layoutSquiggles', () => {
   })
 
   // When two checkers overlap, the one starting at an earlier column sits nearer
-  // the text (higher lane) and the later one tucks below it.
+  // the text (lower lane) and the later one stacks outward above it.
   it('draws the earlier-starting checker nearer the text than a later overlapping one', () => {
     const { placements } = layoutSquiggles(
       [
@@ -291,6 +316,6 @@ describe('layoutSquiggles', () => {
       ],
       () => 34,
     )
-    expect(laneByColor(placements, '#ef4444')).toBeGreaterThan(laneByColor(placements, '#3b82f6'))
+    expect(laneByColor(placements, '#ef4444')).toBeLessThan(laneByColor(placements, '#3b82f6'))
   })
 })

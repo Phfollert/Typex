@@ -77,15 +77,6 @@ export interface PlacedSegment {
   hovers: HoverBlock[]
 }
 
-// Two segments collide when they share a line and their half-open column ranges
-// overlap (each starts before the other ends).
-function collides(
-  a: { line: number; startColumn: number; endColumn: number },
-  b: { line: number; startColumn: number; endColumn: number },
-): boolean {
-  return a.line === b.line && a.startColumn < b.endColumn && b.startColumn < a.endColumn
-}
-
 const SEVERITY_RANK: Record<Severity, number> = { error: 0, warning: 1, information: 2 }
 
 interface Span {
@@ -95,17 +86,6 @@ interface Span {
   color: string
   shape: SquiggleShape
   hovers: HoverBlock[]
-}
-
-// A checker's start is its earliest finding in document order (topmost line,
-// then leftmost column), encoded as one sortable number.
-function startOf(segs: Segment[]): number {
-  let best = Infinity
-  for (const s of segs) {
-    const at = s.line * 1_000_000 + s.startColumn
-    if (at < best) best = at
-  }
-  return best
 }
 
 // Flatten one checker's overlapping findings into non-overlapping spans, split
@@ -152,48 +132,82 @@ export interface SquiggleLayout {
   maxLane: number
 }
 
-// Each checker occupies a single lane across every line it touches, so a
-// multi-line finding keeps one continuous lane down all its rows. Each checker
-// greedily takes the lowest lane no overlapping squiggle already uses.
-// Higher lane numbers render nearer the text (see ensureLaneStyles). The
-// earliest-starting checker should sit nearest the text, so we place the latest
-// starter first (it takes lane 1, farthest from the text) and leave the highest
-// lanes for the earliest starters.
+// A finding fills the whole contiguous reading-order range from its start to its
+// end (middle rows are full-width), so its coverage IS the half-open interval
+// [(line,col), (endLine,endCol)) in the totally-ordered (line, col) space. That
+// lets lanes be assigned on whole findings with one interval-overlap test,
+// instead of per-line segments -- so a multi-line finding is a single interval
+// on a single lane (continuity is automatic), and the per-line split is left to
+// rendering.
+//
+// The lane unit is a "run": same-checker findings whose intervals overlap are
+// unioned, so they share one lane and resolveSpans merges them to the highest
+// severity; a checker's disjoint findings stay in separate runs and can take
+// different lanes. Runs are placed in document order, each taking the lowest
+// free lane. Lane 1 is closest to the text; overlapping runs stack outward (the
+// render layer inverts lane -> depth, see CodeEditor/ensureLaneStyles).
+const posKey = (line: number, column: number) => line * 10_000_000 + column
+
 export function layoutSquiggles(
   diagnostics: EditorDiagnostic[],
   lineEndColumn: (line: number) => number,
 ): SquiggleLayout {
-  const segments = expandToSegments(diagnostics, lineEndColumn)
+  // One interval per finding, carrying its segments for the render-time split.
+  const findings = diagnostics.map((d) => {
+    const segs = expandToSegments([d], lineEndColumn)
+    const first = segs[0]
+    const last = segs[segs.length - 1]
+    return {
+      segs,
+      checkerLabel: d.checkerLabel,
+      startKey: posKey(first.line, first.startColumn),
+      endKey: posKey(last.line, last.endColumn),
+    }
+  })
 
-  const byChecker = new Map<string, Segment[]>()
-  for (const s of segments) {
-    const group = byChecker.get(s.checkerLabel)
-    if (group) group.push(s)
-    else byChecker.set(s.checkerLabel, [s])
+  const overlaps = (a: { startKey: number; endKey: number }, b: { startKey: number; endKey: number }) =>
+    a.startKey < b.endKey && b.startKey < a.endKey
+
+  // Union same-checker findings whose intervals overlap.
+  const parent = findings.map((_, i) => i)
+  const find = (x: number): number => {
+    while (parent[x] !== x) x = parent[x] = parent[parent[x]]
+    return x
+  }
+  for (let i = 0; i < findings.length; i++) {
+    for (let j = i + 1; j < findings.length; j++) {
+      if (findings[i].checkerLabel === findings[j].checkerLabel && overlaps(findings[i], findings[j])) {
+        parent[find(i)] = find(j)
+      }
+    }
   }
 
-  const groups = [...byChecker.entries()].map(([key, segs]) => ({
-    key,
-    segs,
-    start: startOf(segs),
-  }))
-  groups.sort((a, b) => b.start - a.start || a.key.localeCompare(b.key))
+  type Run = { segs: Segment[]; startKey: number; endKey: number }
+  const runMap = new Map<number, Run>()
+  for (let i = 0; i < findings.length; i++) {
+    const f = findings[i]
+    const run = runMap.get(find(i))
+    if (run) {
+      run.segs.push(...f.segs)
+      run.startKey = Math.min(run.startKey, f.startKey)
+      run.endKey = Math.max(run.endKey, f.endKey)
+    } else {
+      runMap.set(find(i), { segs: [...f.segs], startKey: f.startKey, endKey: f.endKey })
+    }
+  }
 
+  const runs = [...runMap.values()].sort((a, b) => a.startKey - b.startKey || a.endKey - b.endKey)
+
+  const placed: { startKey: number; endKey: number; lane: number }[] = []
   const placements: PlacedSegment[] = []
   let maxLane = 0
-  for (const { segs } of groups) {
-    const spans = resolveSpans(segs)
-
+  for (const run of runs) {
     const taken = new Set<number>()
-    for (const p of placements) {
-      if (spans.some((span) => collides(p, span))) taken.add(p.lane)
-    }
+    for (const p of placed) if (overlaps(run, p)) taken.add(p.lane)
     let lane = 1
     while (taken.has(lane)) lane++
-
-    for (const span of spans) {
-      placements.push({ ...span, lane })
-    }
+    placed.push({ startKey: run.startKey, endKey: run.endKey, lane })
+    for (const span of resolveSpans(run.segs)) placements.push({ ...span, lane })
     if (lane > maxLane) maxLane = lane
   }
 
