@@ -15,6 +15,7 @@ from registry import CHECKERS
 from utils.s3_object_store import ObjectStoreError
 from runner import (
     NormalizationError,
+    CheckerFailedError,
     CheckerOutputLimitError,
     CheckerTimeoutError,
     UnsupportedFileError,
@@ -98,6 +99,8 @@ async def typecheck(
         raise HTTPException(status_code=500, detail="checker timed out")
     except CheckerOutputLimitError:
         raise HTTPException(status_code=500, detail="checker output too large")
+    except CheckerFailedError:
+        raise HTTPException(status_code=500, detail="checker failed to run")
     except NormalizationError:
         raise HTTPException(status_code=500, detail="could not parse checker output")
     return CheckerResultModel(

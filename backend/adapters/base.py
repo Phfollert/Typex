@@ -33,3 +33,10 @@ class Adapter(ABC):
     @abstractmethod
     def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
         """Parse the checker's stdout into normalized diagnostics."""
+
+    def run_failed(self, returncode: int | None, stdout: str, stderr: str) -> bool:
+        """True if the checker did not run to a normal conclusion, so `stdout` is
+        not the diagnostics payload. Default: the exit code is neither 0 (clean)
+        nor 1 (findings). Override for a checker with other codes, or one that
+        signals failure through `stdout`/`stderr` rather than the exit code."""
+        return returncode not in (0, 1)

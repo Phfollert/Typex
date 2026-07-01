@@ -9,6 +9,7 @@ from diagnostics import Diagnostic, Severity
 from registry import CHECKERS, CHECKERS_BY_ID, CheckerSpec
 from runner import (
     NormalizationError,
+    CheckerFailedError,
     CheckerOutputLimitError,
     CheckerTimeoutError,
     UnsupportedFileError,
@@ -312,3 +313,41 @@ def test_run_checker_wraps_normalize_failure(monkeypatch: pytest.MonkeyPatch) ->
             run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_CrashAdapter())
         )
     proc.kill.assert_not_called()
+
+
+class _FailAdapter(Adapter):
+    name = "fake"
+
+    def check_command(
+        self, executable: str, workspace: str, target_python: str
+    ) -> list[str]:
+        return [executable]
+
+    def normalize(self, stdout: str, workspace: str) -> list[Diagnostic]:
+        return []
+
+    def run_failed(self, returncode: int | None, stdout: str, stderr: str) -> bool:
+        return True
+
+
+def test_run_checker_raises_when_adapter_reports_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proc = _mock_proc(stdout=[b"partial"], stderr=[b"/private/tmp/host boom Traceback"])
+    proc.returncode = 2
+    _patch_subprocess(monkeypatch, proc)
+    spec = CheckerSpec(
+        id="exited",
+        checker="fake",
+        version="0",
+        executable="checker",
+        color="#000000",
+        adapter="fake",
+    )
+    with pytest.raises(CheckerFailedError) as exc:
+        asyncio.run(
+            run_checker(spec, {"main.py": "x = 1\n"}, "3.12", adapter=_FailAdapter())
+        )
+    # stderr (host paths, tracebacks) is logged, never carried on the exception.
+    assert "/private/tmp/host" not in str(exc.value)
+    assert "traceback" not in str(exc.value).lower()

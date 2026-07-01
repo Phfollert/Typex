@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import shutil
 import subprocess
@@ -11,6 +12,8 @@ from adapters.base import Adapter
 from diagnostics import Diagnostic
 from registry import ADAPTERS, CheckerSpec
 
+
+logger = logging.getLogger(__name__)
 
 CHECK_TIMEOUT_SECONDS = 20.0
 MAX_OUTPUT_BYTES = 1024 * 1024
@@ -43,6 +46,12 @@ class CheckerOutputLimitError(RunnerError):
 
 class NormalizationError(RunnerError):
     """The checker's output could not be parsed into diagnostics."""
+
+
+class CheckerFailedError(RunnerError):
+    """The adapter reported the run as failed (`run_failed`), so its stdout is not
+    the expected diagnostics payload. Usually an exit code outside the checker's
+    success set, but an adapter may key on stdout/stderr instead."""
 
 
 @dataclass
@@ -184,6 +193,16 @@ async def run_checker(
                 f"{spec.id} exceeded {MAX_OUTPUT_BYTES} bytes of output"
             )
         stdout, stderr = out.decode(errors="replace"), err.decode(errors="replace")
+        if adapter.run_failed(proc.returncode, stdout, stderr):
+            # stderr can carry host paths and tracebacks, so it is logged here for
+            # debugging but never surfaced to the client.
+            logger.warning(
+                "checker %s exited %s; stderr: %s",
+                spec.id,
+                proc.returncode,
+                stderr[:2000],
+            )
+            raise CheckerFailedError(f"{spec.id} exited with code {proc.returncode}")
         try:
             diagnostics = adapter.normalize(stdout, workspace)
         except Exception as exc:

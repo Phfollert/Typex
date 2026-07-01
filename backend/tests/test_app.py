@@ -9,6 +9,7 @@ from diagnostics import Diagnostic, Severity
 from registry import CheckerSpec
 from runner import (
     NormalizationError,
+    CheckerFailedError,
     CheckerOutputLimitError,
     CheckerResult,
     CheckerTimeoutError,
@@ -189,6 +190,23 @@ def test_typecheck_output_limit_returns_500(app_: FastAPI, client: TestClient) -
     )
 
     assert resp.status_code == 500
+
+
+def test_typecheck_checker_exit_returns_500_without_leaking(app_: FastAPI) -> None:
+    async def _exited(
+        spec: CheckerSpec, files: dict[str, str], python_version: str
+    ) -> CheckerResult:
+        raise CheckerFailedError("fake-1.0 exited with code 2")
+
+    _override_run(app_, _exited)
+    client = TestClient(app_)
+    resp = client.post(
+        "/api/checkers/fake-1.0/typecheck",
+        json={"files": {"main.py": "x = 1\n"}, "python_version": "3.12"},
+    )
+
+    assert resp.status_code == 500
+    assert "exited with code" not in resp.text
 
 
 def test_typecheck_normalization_error_returns_500(
