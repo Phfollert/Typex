@@ -14,8 +14,6 @@ function ensureInit() {
 export function useRuffValidator(initialVersion: string = 'py310') {
   const [targetVersion, setTargetVersion] = useState(initialVersion);
   const [isReady, setIsReady] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<RuffDiagnostic[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   // Use a ref to hold the workspace safely without causing async closure traps
   const workspaceRef = useRef<Workspace | null>(null);
@@ -48,14 +46,10 @@ export function useRuffValidator(initialVersion: string = 'py310') {
 
           workspaceRef.current = new Workspace(options, PositionEncoding.Utf16);
           setIsReady(true);
-          setError(null);
         }
       } catch (err) {
         console.error("Failed to initialize Ruff WASM", err);
-        if (mounted) {
-          setError(err instanceof Error ? err.message : String(err));
-          setIsReady(false);
-        }
+        if (mounted) setIsReady(false);
       }
     }
 
@@ -81,22 +75,17 @@ export function useRuffValidator(initialVersion: string = 'py310') {
 
     try {
       // Workspace.check() is typed `any` by the package; it returns RuffDiagnostic[].
-      const result = workspaceRef.current.check(code) as RuffDiagnostic[];
-      setDiagnostics(result);
-      return result;
+      return workspaceRef.current.check(code) as RuffDiagnostic[];
     } catch (err) {
       console.error("Validation error:", err);
-      // Wait to see if this handles the error gracefully
       return [];
     }
   }, [isReady]);
 
   return {
     isReady,
-    error,
     targetVersion,
     setTargetVersion,
-    diagnostics,
     validateCode
   };
 }
