@@ -1,4 +1,5 @@
 import React from 'react';
+import VersionPicker from '@/components/VersionPicker';
 import type { CheckerInfo } from '@/types';
 
 function runStatusLabel(isSubmitting: boolean, isValid: boolean, runSummary: string | null): string {
@@ -28,15 +29,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
   isSubmitting,
   runSummary
 }) => {
-  const versions = [
-    { value: 'py37', label: 'Python 3.7' },
-    { value: 'py38', label: 'Python 3.8' },
-    { value: 'py39', label: 'Python 3.9' },
-    { value: 'py310', label: 'Python 3.10' },
-    { value: 'py311', label: 'Python 3.11' },
-    { value: 'py312', label: 'Python 3.12' },
-  ];
-
   const toggleTypechecker = (id: string) => {
     if (selectedCheckerIds.includes(id)) {
       setSelectedCheckerIds(selectedCheckerIds.filter(t => t !== id));
@@ -71,19 +63,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       <div className="version-selector-container">
-        <label htmlFor="version-select">Target</label>
-        <select
-          id="version-select"
-          className="version-select"
-          value={targetVersion}
-          onChange={(e) => setTargetVersion(e.target.value)}
-        >
-          {versions.map((ver) => (
-            <option key={ver.value} value={ver.value}>
-              {ver.label}
-            </option>
-          ))}
-        </select>
+        <label>Target</label>
+        <VersionPicker value={targetVersion} onChange={setTargetVersion} />
       </div>
     </div>
   );

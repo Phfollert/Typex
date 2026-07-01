@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { usePopover } from '@/hooks/usePopover';
 import type { ExampleEntry } from '@/examples/types';
 
 interface Props {
@@ -7,53 +7,31 @@ interface Props {
 }
 
 export default function ExamplePicker({ entries, onPick }: Props) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  const { id, triggerRef, popoverRef } = usePopover('start');
 
   return (
-    <div className="example-picker" ref={rootRef}>
-      <button className="pane-action" onClick={() => setOpen((o) => !o)} title="Load an example">
+    <div className="example-picker">
+      <button ref={triggerRef} popoverTarget={id} className="pane-action" title="Load an example">
         ▤ Examples ▾
       </button>
-      {open && (
-        <div className="example-menu">
-          {entries.length === 0 ? (
-            <div className="example-menu-empty">No examples available</div>
-          ) : (
-            entries.map((entry) => (
-              <button
-                key={entry.id}
-                className="example-item"
-                title={entry.description}
-                onClick={() => {
-                  onPick(entry);
-                  setOpen(false);
-                }}
-              >
-                {entry.title}
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      <div ref={popoverRef} id={id} popover="auto" className="example-menu">
+        {entries.length === 0 ? (
+          <div className="example-menu-empty">No examples available</div>
+        ) : (
+          entries.map((entry) => (
+            <button
+              key={entry.id}
+              className="example-item"
+              title={entry.description}
+              popoverTarget={id}
+              popoverTargetAction="hide"
+              onClick={() => onPick(entry)}
+            >
+              {entry.title}
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }

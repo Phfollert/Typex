@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { usePopover } from '@/hooks/usePopover';
 import { useShare, type ShareKind, type SharePhase } from '@/hooks/useShare';
 import type { ShareState } from '@/share/types';
 
@@ -11,59 +11,47 @@ const OPTIONS: { kind: ShareKind; label: string; hint: string }[] = [
   { kind: 'full', label: '📄 Full link', hint: 'Copy a link with the whole workspace encoded in the URL' },
 ];
 
-function statusText(phase: SharePhase, kind: ShareKind): string {
-  if (phase.status === 'idle' || phase.kind !== kind) return '';
-  if (phase.status === 'creating') return '…';
-  if (phase.status === 'copied') return '✓ Copied';
-  return '⚠ Failed';
+function triggerLabel(phase: SharePhase): string {
+  switch (phase.status) {
+    case 'creating':
+      return '⏳ Copying…';
+    case 'copied':
+      return '✓ Link copied';
+    case 'error':
+      return '⚠ Copy failed';
+    default:
+      return '🔗 Share ▾';
+  }
 }
 
 export default function ShareButton({ state }: ShareButtonProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const { id, triggerRef, popoverRef } = usePopover('end');
   const { config, events } = useShare(state);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   return (
-    <div className="share-picker" ref={rootRef}>
+    <div className="share-picker">
       <button
+        ref={triggerRef}
+        popoverTarget={id}
         className="pane-action share-button"
-        onClick={() => setOpen((o) => !o)}
         title="Share this workspace"
       >
-        🔗 Share ▾
+        {triggerLabel(config.phase)}
       </button>
-      {open && (
-        <div className="share-menu">
-          {OPTIONS.map(({ kind, label, hint }) => (
-            <button
-              key={kind}
-              className="share-item"
-              title={hint}
-              disabled={config.isBusy}
-              onClick={() => void events.copyLink(kind)}
-            >
-              <span>{label}</span>
-              <span className="share-item-status">{statusText(config.phase, kind)}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <div ref={popoverRef} id={id} popover="auto" className="share-menu">
+        {OPTIONS.map(({ kind, label, hint }) => (
+          <button
+            key={kind}
+            className="share-item"
+            title={hint}
+            popoverTarget={id}
+            popoverTargetAction="hide"
+            onClick={() => void events.copyLink(kind)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
