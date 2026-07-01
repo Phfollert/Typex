@@ -6,6 +6,15 @@
   overflow: hidden;
 }
 
+.app-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  color: var(--text-secondary);
+}
+
 .top-bar {
   display: flex;
   justify-content: space-between;
@@ -17,6 +26,8 @@
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--glass-border);
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
 }
 
 .brand {
@@ -209,6 +220,56 @@
   padding: 0.4rem 0.75rem;
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.share-picker {
+  position: relative;
+  display: inline-block;
+}
+
+.share-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 240px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 50;
+  padding: 4px 0;
+}
+
+.share-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.share-item:hover:not(:disabled) {
+  background: var(--bg-secondary);
+}
+
+.share-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.share-item-status {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  min-width: 3.5rem;
+  text-align: right;
 }
 
 /* Toolbar Specific */

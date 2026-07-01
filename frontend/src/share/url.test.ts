@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import { parseShareUrl, buildFullLink, buildShortLink, createShareLink } from '@/share/url';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { parseShareUrl, buildFullLink, buildShortLink, createFullLink, createShortLink } from '@/share/url';
 import { decodeState } from '@/share/codec';
 import type { ShareState } from '@/share/types';
 
@@ -36,17 +36,38 @@ describe('link builders', () => {
   });
 });
 
-describe('createShareLink', () => {
-  const sample: ShareState = {
-    v: 1,
-    files: { 'main.py': 'x: int = 1\n', 'lib.py': 'def f(): ...\n' },
-    checkers: ['mypy-1.20.2', 'pyright-1.1.409'],
-    py: 'py312',
-  };
+const sample: ShareState = {
+  v: 1,
+  files: { 'main.py': 'x: int = 1\n', 'lib.py': 'def f(): ...\n' },
+  checkers: ['mypy-1.20.2', 'pyright-1.1.409'],
+  py: 'py312',
+};
 
-  it('produces a link that parses and decodes back to the original state', () => {
-    const parsed = parseShareUrl(new URL(createShareLink(sample)));
+describe('createFullLink', () => {
+  it('produces a full link that parses and decodes back to the original state', () => {
+    const parsed = parseShareUrl(new URL(createFullLink(sample)));
     expect(parsed?.kind).toBe('full');
     expect(decodeState((parsed as { payload: string }).payload)).toEqual(sample);
+  });
+});
+
+describe('createShortLink', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('stores the payload and returns a short link', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'Ab3xYz', url: '/s/Ab3xYz' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const link = await createShortLink(sample);
+    expect(parseShareUrl(new URL(link as string))).toEqual({ kind: 'short', id: 'Ab3xYz' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/share', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('returns null when the short-link store is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    expect(await createShortLink(sample)).toBeNull();
   });
 });

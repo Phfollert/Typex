@@ -1,36 +1,69 @@
-import { useState } from 'react';
-import { createShareLink } from '@/share/url';
+import { useEffect, useRef, useState } from 'react';
+import { useShare, type ShareKind, type SharePhase } from '@/hooks/useShare';
 import type { ShareState } from '@/share/types';
-
-type ShareStatus = 'idle' | 'copied' | 'error';
-
-const LABEL = {
-  idle: '🔗 Share',
-  copied: '✓ Link copied',
-  error: '⚠ Copy failed',
-} as const;
 
 interface ShareButtonProps {
   state: ShareState;
 }
 
-export default function ShareButton({ state }: ShareButtonProps) {
-  const [status, setStatus] = useState<ShareStatus>('idle');
+const OPTIONS: { kind: ShareKind; label: string; hint: string }[] = [
+  { kind: 'short', label: '🔗 Short link', hint: 'Store the workspace and copy a short /s/… link' },
+  { kind: 'full', label: '📄 Full link', hint: 'Copy a link with the whole workspace encoded in the URL' },
+];
 
-  const onShare = async () => {
-    try {
-      await navigator.clipboard.writeText(createShareLink(state));
-      setStatus('copied');
-    } catch (err) {
-      console.error('Failed to create share link:', err);
-      setStatus('error');
-    }
-    setTimeout(() => setStatus('idle'), 2000);
-  };
+function statusText(phase: SharePhase, kind: ShareKind): string {
+  if (phase.status === 'idle' || phase.kind !== kind) return '';
+  if (phase.status === 'creating') return '…';
+  if (phase.status === 'copied') return '✓ Copied';
+  return '⚠ Failed';
+}
+
+export default function ShareButton({ state }: ShareButtonProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const { config, events } = useShare(state);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   return (
-    <button className="pane-action share-button" onClick={onShare} title="Copy a link to this workspace">
-      {LABEL[status]}
-    </button>
+    <div className="share-picker" ref={rootRef}>
+      <button
+        className="pane-action share-button"
+        onClick={() => setOpen((o) => !o)}
+        title="Share this workspace"
+      >
+        🔗 Share ▾
+      </button>
+      {open && (
+        <div className="share-menu">
+          {OPTIONS.map(({ kind, label, hint }) => (
+            <button
+              key={kind}
+              className="share-item"
+              title={hint}
+              disabled={config.isBusy}
+              onClick={() => void events.copyLink(kind)}
+            >
+              <span>{label}</span>
+              <span className="share-item-status">{statusText(config.phase, kind)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

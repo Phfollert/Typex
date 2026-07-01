@@ -2,6 +2,7 @@
 // (#s=<payload>); short links use the /s/<id> path.
 
 import { encodeState } from './codec';
+import { postSharePayload } from './api';
 import type { ShareState } from './types';
 
 const FRAGMENT_KEY = 's';
@@ -31,6 +32,14 @@ export function buildShortLink(origin: string, id: string): string {
   return `${origin}/s/${id}`;
 }
 
-export function createShareLink(state: ShareState): string {
+// Full link: the whole payload rides in the fragment, no server round-trip.
+export function createFullLink(state: ShareState): string {
   return buildFullLink(window.location.origin, encodeState(state));
+}
+
+// Short link: stores the payload server-side and returns a /s/<id> link, or null
+// when the store is unavailable so the caller can surface the failure.
+export async function createShortLink(state: ShareState): Promise<string | null> {
+  const id = await postSharePayload(encodeState(state));
+  return id ? buildShortLink(window.location.origin, id) : null;
 }

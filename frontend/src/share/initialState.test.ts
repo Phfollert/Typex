@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { readInitialState } from '@/share/initialState';
+import { readInitialState, resolveShortLink } from '@/share/initialState';
 import { encodeState } from '@/share/codec';
 import { persistState } from '@/share/persistence';
 import { stubStorage } from '@/test/storage';
@@ -39,5 +39,40 @@ describe('readInitialState', () => {
 
     expect(readInitialState()).toEqual(draftState);
     expect(window.location.hash).toBe('');
+  });
+});
+
+describe('resolveShortLink', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('fetches and decodes the stored payload, then strips /s/<id>', async () => {
+    window.history.replaceState(null, '', '/s/Ab3xYz');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ payload: encodeState(linkState) }),
+    }));
+
+    expect(await resolveShortLink('Ab3xYz')).toEqual(linkState);
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('falls back to persisted state when the link is missing', async () => {
+    persistState(draftState);
+    window.history.replaceState(null, '', '/s/missing');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+
+    expect(await resolveShortLink('missing')).toEqual(draftState);
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('falls back to persisted state when the payload is corrupt', async () => {
+    persistState(draftState);
+    window.history.replaceState(null, '', '/s/Ab3xYz');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ payload: 'garbage' }),
+    }));
+
+    expect(await resolveShortLink('Ab3xYz')).toEqual(draftState);
   });
 });
