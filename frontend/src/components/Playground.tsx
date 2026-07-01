@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useRuffValidator } from '@/hooks/useRuffValidator';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useCheckerRun } from '@/hooks/useCheckerRun';
@@ -31,12 +32,15 @@ export default function Playground({ initial }: PlaygroundProps) {
   });
   const exampleEntries = useExamples();
 
-  const shareState: ShareState = {
-    v: CURRENT_SHARE_VERSION,
-    files: workspace.field.files,
-    checkers: checkerRun.field.selectedCheckerIds,
-    py: targetVersion,
-  };
+  const shareState = useMemo<ShareState>(
+    () => ({
+      v: CURRENT_SHARE_VERSION,
+      files: workspace.field.files,
+      checkers: checkerRun.field.selectedCheckerIds,
+      py: targetVersion,
+    }),
+    [workspace.field.files, checkerRun.field.selectedCheckerIds, targetVersion]
+  );
   useAutosave(shareState);
 
   const { files, ruffByFile, addingFile, newFileName, fileInputRef } = workspace.field;

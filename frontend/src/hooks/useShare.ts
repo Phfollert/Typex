@@ -20,17 +20,12 @@ export interface UseShare {
 export function useShare(state: ShareState): UseShare {
   const [phase, setPhase] = useState<SharePhase>({ status: 'idle' });
 
-  // The latest state without re-creating copyLink each render (Workspace rebuilds
-  // the share state object on every render).
-  const stateRef = useRef(state);
-  stateRef.current = state;
   const timerRef = useRef<number>(undefined);
 
   const copyLink = useCallback(async (kind: ShareKind) => {
     setPhase({ status: 'creating', kind });
     try {
-      const link =
-        kind === 'full' ? createFullLink(stateRef.current) : await createShortLink(stateRef.current);
+      const link = kind === 'full' ? createFullLink(state) : await createShortLink(state);
       if (!link) throw new Error('share store unavailable');
       await navigator.clipboard.writeText(link);
       setPhase({ status: 'copied', kind });
@@ -40,7 +35,7 @@ export function useShare(state: ShareState): UseShare {
     }
     clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => setPhase({ status: 'idle' }), RESET_MS);
-  }, []);
+  }, [state]);
 
   return {
     config: { phase, isBusy: phase.status === 'creating' },
