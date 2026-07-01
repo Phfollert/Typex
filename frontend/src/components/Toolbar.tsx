@@ -2,8 +2,8 @@ import React from 'react';
 import VersionPicker from '@/components/VersionPicker';
 import type { CheckerInfo } from '@/types';
 
-function runStatusLabel(isSubmitting: boolean, isValid: boolean, runSummary: string | null): string {
-  if (isSubmitting) return 'Checking…';
+function runStatusLabel(isChecking: boolean, isValid: boolean, runSummary: string | null): string {
+  if (isChecking) return 'Checking…';
   if (!isValid) return 'Invalid syntax';
   return runSummary ?? '';
 }
@@ -15,7 +15,7 @@ interface ToolbarProps {
   selectedCheckerIds: string[];
   setSelectedCheckerIds: (ids: string[]) => void;
   isValid: boolean;
-  isSubmitting: boolean;
+  isChecking: boolean;
   runSummary: string | null;
 }
 
@@ -26,7 +26,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   selectedCheckerIds,
   setSelectedCheckerIds,
   isValid,
-  isSubmitting,
+  isChecking,
   runSummary
 }) => {
   const toggleTypechecker = (id: string) => {
@@ -40,7 +40,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   return (
     <div className="toolbar">
       <span className="run-status">
-        {runStatusLabel(isSubmitting, isValid, runSummary)}
+        {runStatusLabel(isChecking, isValid, runSummary)}
       </span>
 
       <div className="typecheckers-container">

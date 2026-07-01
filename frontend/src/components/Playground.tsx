@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { useRuffValidator } from '@/hooks/useRuffValidator';
 import { useWorkspace } from '@/hooks/useWorkspace';
-import { useCheckerRun } from '@/hooks/useCheckerRun';
+import { useCheckerCatalog } from '@/hooks/useCheckerCatalog';
+import { useCheckerDiagnostics } from '@/hooks/useCheckerDiagnostics';
 import { useExamples } from '@/hooks/useExamples';
 import { useAutosave } from '@/hooks/useAutosave';
 import { CURRENT_SHARE_VERSION, type ShareState } from '@/share/types';
@@ -23,12 +24,14 @@ export default function Playground({ initial }: PlaygroundProps) {
     setTargetVersion,
     initialFiles: initial?.files,
   });
-  const checkerRun = useCheckerRun({
+  const catalog = useCheckerCatalog({ initialSelectedCheckerIds: initial?.checkers ?? null });
+  const diagnostics = useCheckerDiagnostics({
     files: workspace.field.files,
     targetVersion,
     isReady,
     canRun: workspace.config.canRun,
-    initialSelectedCheckerIds: initial?.checkers ?? null,
+    checkers: catalog.field.checkers,
+    selectedCheckerIds: catalog.field.selectedCheckerIds,
   });
   const exampleEntries = useExamples();
 
@@ -36,17 +39,18 @@ export default function Playground({ initial }: PlaygroundProps) {
     () => ({
       v: CURRENT_SHARE_VERSION,
       files: workspace.field.files,
-      checkers: checkerRun.field.selectedCheckerIds,
+      checkers: catalog.field.selectedCheckerIds,
       py: targetVersion,
     }),
-    [workspace.field.files, checkerRun.field.selectedCheckerIds, targetVersion]
+    [workspace.field.files, catalog.field.selectedCheckerIds, targetVersion]
   );
   useAutosave(shareState);
 
   const { files, ruffByFile, addingFile, newFileName, fileInputRef } = workspace.field;
   const fileNames = Object.keys(files);
   const ws = workspace.events;
-  const { checkers, selectedCheckerIds, typecheckerDiagnostics } = checkerRun.field;
+  const { checkers, selectedCheckerIds } = catalog.field;
+  const { typecheckerDiagnostics } = diagnostics.field;
 
   return (
     <div className="app-container">
@@ -100,10 +104,10 @@ export default function Playground({ initial }: PlaygroundProps) {
               targetVersion={targetVersion}
               setTargetVersion={setTargetVersion}
               selectedCheckerIds={selectedCheckerIds}
-              setSelectedCheckerIds={checkerRun.events.setSelectedCheckerIds}
+              setSelectedCheckerIds={catalog.events.setSelectedCheckerIds}
               isValid={!workspace.config.hasSyntaxErrors}
-              isSubmitting={checkerRun.config.isSubmitting}
-              runSummary={checkerRun.config.runSummary}
+              isChecking={diagnostics.config.isChecking}
+              runSummary={diagnostics.config.runSummary}
             />
           </div>
           <div className="editor-split">
