@@ -30,7 +30,11 @@ export function useCheckerRun({
   // isSubmitting (in flight) and runSummary (last result) are independent on purpose.
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [runSummary, setRunSummary] = useState<string | null>(null);
+  // Latest issued run id; any edit bumps it, invalidating in-flight runs.
   const runIdRef = useRef(0);
+  // The run currently driving isSubmitting. Only this run may clear the flag, so
+  // a stale run finishing late never turns "checking" off under a newer run.
+  const pendingRunRef = useRef<number | null>(null);
 
   const logError = (msg: string) => {
     console.error(`[${new Date().toLocaleTimeString()}] ${msg}`);
@@ -64,6 +68,7 @@ export function useCheckerRun({
   }, [files]);
 
   const runCheckers = async (runId: number) => {
+    pendingRunRef.current = runId;
     setIsSubmitting(true);
     const pythonVersion = ruffToPythonVersion(targetVersion);
 
@@ -122,7 +127,12 @@ export function useCheckerRun({
           : 'No issues found'
       );
     } finally {
-      setIsSubmitting(false);
+      // Only clear "checking" if a newer run hasn't taken over as pending;
+      // otherwise this stale completion would hide the newer run in flight.
+      if (pendingRunRef.current === runId) {
+        pendingRunRef.current = null;
+        setIsSubmitting(false);
+      }
     }
   };
 
