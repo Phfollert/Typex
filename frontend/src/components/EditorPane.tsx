@@ -4,6 +4,7 @@ import type { EditorDiagnostic, RuffDiagnostic } from '@/types';
 
 interface EditorPaneProps {
   file: string;
+  grow: number;
   content: string;
   onChangeContent: (content: string) => void;
   onClose: (() => void) | null;
@@ -14,6 +15,7 @@ interface EditorPaneProps {
 
 const EditorPane: React.FC<EditorPaneProps> = ({
   file,
+  grow,
   content,
   onChangeContent,
   onClose,
@@ -22,7 +24,7 @@ const EditorPane: React.FC<EditorPaneProps> = ({
   isReady,
 }) => {
   return (
-    <div className="editor-column">
+    <div className="editor-column" style={{ flexGrow: grow }}>
       <div className="editor-column-header">
         <span className="file-name">{file}</span>
         {onClose && (

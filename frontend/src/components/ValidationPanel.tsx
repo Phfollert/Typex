@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { CheckerInfo, CheckerRunState } from '@/types';
+import { usePanelResize } from '@/hooks/usePanelResize';
 import ValidationTabs from '@/components/ValidationTabs';
 import ValidationTabContent from '@/components/ValidationTabContent';
 
@@ -12,6 +13,7 @@ interface ValidationPanelProps {
 const ValidationPanel: React.FC<ValidationPanelProps> = ({ checkers, selectedCheckerIds, checkerStates }) => {
   const [activeIdState, setActiveIdState] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const resize = usePanelResize();
 
   const checkerById = new Map(checkers.map((c) => [c.id, c]));
   const ordered = selectedCheckerIds.map((id) => checkerById.get(id)).filter((c): c is CheckerInfo => c != null);
@@ -30,7 +32,23 @@ const ValidationPanel: React.FC<ValidationPanelProps> = ({ checkers, selectedChe
     activeIdState && selectedCheckerIds.includes(activeIdState) ? activeIdState : ordered[0].id;
 
   return (
-    <div className="validation-panel">
+    <div
+      className={collapsed ? 'validation-panel collapsed' : 'validation-panel'}
+      style={collapsed ? undefined : { height: resize.field.height }}
+    >
+      {collapsed ? null : (
+        <div
+          className="validation-resizer"
+          role="separator"
+          aria-orientation="horizontal"
+          title="Drag to resize, double-click to reset"
+          onPointerDown={resize.events.startResize}
+          onPointerMove={resize.events.moveResize}
+          onPointerUp={resize.events.endResize}
+          onPointerCancel={resize.events.endResize}
+          onDoubleClick={resize.events.resetHeight}
+        />
+      )}
       <div className="validation-tabbar">
         <ValidationTabs
           checkers={ordered}

@@ -2,7 +2,8 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
   overflow: hidden;
 }
 
@@ -11,7 +12,8 @@
   align-items: center;
   justify-content: center;
   height: 100vh;
-  width: 100vw;
+  height: 100dvh;
+  width: 100%;
   color: var(--text-secondary);
 }
 
@@ -59,13 +61,15 @@
 .main-content {
   display: flex;
   flex: 1;
+  min-height: 0;
   position: relative;
   z-index: 10;
-  height: calc(100vh - 64px);
 }
 
 .editor-pane {
   flex: 2;
+  min-width: 0;
+  min-height: 0;
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -93,6 +97,17 @@
 .editor-wrapper {
   flex: 1;
   position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Monaco writes pixel sizes onto its DOM; taking its host section out of flow
+   keeps those sizes from becoming a min-content floor that blocks the flex
+   layout from shrinking after a zoom or window resize. */
+.editor-wrapper > section {
+  position: absolute !important;
+  inset: 0;
 }
 
 /* Multi-file split */
@@ -107,11 +122,26 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   border-right: 1px solid var(--border-color);
 }
 
 .editor-column:last-child {
   border-right: none;
+}
+
+.editor-split-resizer {
+  flex: none;
+  width: 7px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.editor-split-resizer:hover,
+.editor-split-resizer:active {
+  background: color-mix(in srgb, var(--accent-primary) 55%, transparent);
 }
 
 .editor-column-header {
@@ -411,17 +441,6 @@
   filter: grayscale(1);
 }
 
-/* Validation Panel */
-.validation-panel {
-  padding: 1rem;
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-height: 0;
-}
-
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -474,15 +493,42 @@
 .console-line.error { color: var(--error); }
 .console-line.info { color: var(--accent-primary); }
 
-/* Validation panel (below the editor split, full width) */
+/* Validation panel (below the editor split, full width). The min/max-height
+   pair is the single owner of the resize limits: it clamps both live drags
+   (usePanelResize sets an unclamped inline height) and later viewport
+   shrinks (zoom in, window resize), reserving room for the pane header and
+   a slice of editor. */
 .validation-panel {
+  position: relative;
   flex: none;
-  height: 220px;
+  height: min(220px, 40vh);
+  min-height: 64px;
+  max-height: calc(100% - 96px);
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
+}
+
+.validation-panel.collapsed {
+  height: auto;
   min-height: 0;
+}
+
+.validation-resizer {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.validation-resizer:hover,
+.validation-resizer:active {
+  background: color-mix(in srgb, var(--accent-primary) 55%, transparent);
 }
 
 .validation-tabbar {

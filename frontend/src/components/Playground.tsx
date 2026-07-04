@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { useRuffValidator } from '@/hooks/useRuffValidator';
+import { useEditorSplitResize } from '@/hooks/useEditorSplitResize';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { useCheckerCatalog } from '@/hooks/useCheckerCatalog';
 import { useCheckerDiagnostics } from '@/hooks/useCheckerDiagnostics';
@@ -35,6 +36,7 @@ export default function Playground({ initial }: PlaygroundProps) {
     selectedCheckerIds: catalog.field.selectedCheckerIds,
   });
   const exampleEntries = useExamples();
+  const split = useEditorSplitResize();
 
   const shareState = useMemo<ShareState>(
     () => ({
@@ -112,17 +114,32 @@ export default function Playground({ initial }: PlaygroundProps) {
             />
           </div>
           <div className="editor-split">
-            {fileNames.map((file) => (
-              <EditorPane
-                key={file}
-                file={file}
-                content={files[file] ?? ''}
-                onChangeContent={(content) => ws.updateFileContent(file, content)}
-                onClose={fileNames.length > 1 ? () => ws.closeFile(file) : null}
-                ruffDiagnostics={ruffByFile[file] ?? []}
-                typecheckerDiagnostics={typecheckerDiagnostics.filter((d) => d.file === file)}
-                isReady={isReady}
-              />
+            {fileNames.map((file, i) => (
+              <Fragment key={file}>
+                {i > 0 ? (
+                  <div
+                    className="editor-split-resizer"
+                    role="separator"
+                    aria-orientation="vertical"
+                    title="Drag to resize, double-click to equalize"
+                    onPointerDown={(e) => split.events.startResize(e, fileNames[i - 1], file)}
+                    onPointerMove={split.events.moveResize}
+                    onPointerUp={split.events.endResize}
+                    onPointerCancel={split.events.endResize}
+                    onDoubleClick={() => split.events.equalize(fileNames[i - 1], file)}
+                  />
+                ) : null}
+                <EditorPane
+                  file={file}
+                  grow={split.field.growByFile[file] ?? 1}
+                  content={files[file] ?? ''}
+                  onChangeContent={(content) => ws.updateFileContent(file, content)}
+                  onClose={fileNames.length > 1 ? () => ws.closeFile(file) : null}
+                  ruffDiagnostics={ruffByFile[file] ?? []}
+                  typecheckerDiagnostics={typecheckerDiagnostics.filter((d) => d.file === file)}
+                  isReady={isReady}
+                />
+              </Fragment>
             ))}
           </div>
           <ValidationPanel
