@@ -46,13 +46,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
     // text, so invert: lane 1 -> deepest depth (maxLane).
     const depthOf = (lane: number) => maxLane - lane + 1;
 
+    // Every squiggle background is anchored to the bottom of its character box
+    // (background-position: 100%), so the padding-bottom must be uniform across a
+    // line. Reserving each line's deepest lane on every span keeps that anchor
+    // still, so a finding renders at one flat depth instead of jumping wherever a
+    // deeper neighbor starts or ends.
+    const maxDepthByLine = new Map<number, number>();
+    for (const p of placements) {
+      maxDepthByLine.set(p.line, Math.max(maxDepthByLine.get(p.line) ?? 0, depthOf(p.lane)));
+    }
+
     const newDecorations = placements.map((p) => {
       const depth = depthOf(p.lane);
+      const lineDepth = maxDepthByLine.get(p.line)!;
       return {
         range: new monaco.Range(p.line, p.startColumn, p.line, p.endColumn),
         options: {
           isWholeLine: false,
-          inlineClassName: `squiggly-base squiggly-depth-${depth} ${bgSetterClass(p.color, depth, p.shape)}`,
+          inlineClassName: `squiggly-base squiggly-depth-${lineDepth} ${bgSetterClass(p.color, depth, p.shape)}`,
           hoverMessage: p.hovers.map(hoverMarkdown),
         },
       };
@@ -62,11 +73,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange, diagnostics, is
       typecheckerDecorationsRef.current,
       newDecorations,
     );
-
-    const maxDepthByLine = new Map<number, number>();
-    for (const p of placements) {
-      maxDepthByLine.set(p.line, Math.max(maxDepthByLine.get(p.line) ?? 0, depthOf(p.lane)));
-    }
 
     editorInstance.changeViewZones((accessor: editor.IViewZoneChangeAccessor) => {
       viewZoneIdsRef.current.forEach((id) => accessor.removeZone(id));
