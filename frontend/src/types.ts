@@ -38,3 +38,8 @@ export interface EditorDiagnostic {
   message: string;
   severity: Severity;
 }
+
+export type CheckerRunState =
+  | { status: 'checking'; prev: EditorDiagnostic[] | null }
+  | { status: 'done'; diagnostics: EditorDiagnostic[] }
+  | { status: 'error'; message: string; prev: EditorDiagnostic[] | null };

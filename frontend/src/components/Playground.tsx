@@ -10,6 +10,7 @@ import Toolbar from '@/components/Toolbar';
 import EditorPane from '@/components/EditorPane';
 import ExamplePicker from '@/components/ExamplePicker';
 import ShareButton from '@/components/ShareButton';
+import ValidationPanel from '@/components/ValidationPanel';
 
 interface PlaygroundProps {
   initial: ShareState | null;
@@ -50,7 +51,7 @@ export default function Playground({ initial }: PlaygroundProps) {
   const fileNames = Object.keys(files);
   const ws = workspace.events;
   const { checkers, selectedCheckerIds } = catalog.field;
-  const { typecheckerDiagnostics } = diagnostics.field;
+  const { typecheckerDiagnostics, checkerStates } = diagnostics.field;
 
   return (
     <div className="app-container">
@@ -124,6 +125,11 @@ export default function Playground({ initial }: PlaygroundProps) {
               />
             ))}
           </div>
+          <ValidationPanel
+            checkers={checkers}
+            selectedCheckerIds={selectedCheckerIds}
+            checkerStates={checkerStates}
+          />
         </div>
       </div>
 

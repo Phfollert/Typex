@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import type { CheckerInfo, CheckerResult, EditorDiagnostic } from '@/types';
+import type { CheckerInfo, CheckerResult, CheckerRunState, EditorDiagnostic } from '@/types';
+import { enterChecking, visibleDiagnostics } from '@/validationPanel';
 
 const AUTO_RUN_DELAY = 800; // ms of inactivity before auto-checking
 
@@ -7,6 +8,20 @@ const AUTO_RUN_DELAY = 800; // ms of inactivity before auto-checking
 function ruffToPythonVersion(target: string): string {
   const digits = target.replace('py', '');
   return `${digits[0]}.${digits.slice(1)}`;
+}
+
+function toEditorDiagnostics(result: CheckerResult, info: CheckerInfo): EditorDiagnostic[] {
+  return result.diagnostics.map((d) => ({
+    file: d.file,
+    checkerLabel: info.label,
+    color: info.color,
+    line: d.line,
+    column: d.column,
+    endLine: d.end_line,
+    endColumn: d.end_column,
+    message: d.code ? `${d.message} (${d.code})` : d.message,
+    severity: d.severity,
+  }));
 }
 
 interface UseCheckerDiagnosticsArgs {
@@ -18,9 +33,10 @@ interface UseCheckerDiagnosticsArgs {
   selectedCheckerIds: string[];
 }
 
-// Provides typechecker diagnostics for the current files, re-checking (debounced)
-// whenever the files, target, or selection change. The backend runs the checkers;
-// this hook triggers a check and surfaces its results.
+// Runs the selected checkers and exposes two independently-updated slices:
+// `checkerStates` (per-checker, updated as each response lands, drives the panel)
+// and `typecheckerDiagnostics` (the flat squiggle array, updated once per run at
+// the all-settled barrier so the squiggle lane algorithm sees the full set).
 export function useCheckerDiagnostics({
   files,
   targetVersion,
@@ -29,112 +45,110 @@ export function useCheckerDiagnostics({
   checkers,
   selectedCheckerIds,
 }: UseCheckerDiagnosticsArgs) {
+  const [checkerStates, setCheckerStates] = useState<Record<string, CheckerRunState>>({});
   const [typecheckerDiagnostics, setTypecheckerDiagnostics] = useState<EditorDiagnostic[]>([]);
-  // isChecking (in flight) and runSummary (last result) are independent on purpose.
-  const [isChecking, setIsChecking] = useState(false);
   const [runSummary, setRunSummary] = useState<string | null>(null);
   // Latest issued run id; any edit bumps it, invalidating in-flight runs.
   const runIdRef = useRef(0);
-  // The run currently driving isChecking. Only this run may clear the flag, so
-  // a stale run finishing late never turns "checking" off under a newer run.
-  const pendingRunRef = useRef<number | null>(null);
 
   const logError = (msg: string) => {
     console.error(`[${new Date().toLocaleTimeString()}] ${msg}`);
   };
 
-  // Clear squiggles on any file change.
-  useEffect(() => {
-    setTypecheckerDiagnostics([]);
-  }, [files]);
-
   const check = async (runId: number) => {
-    pendingRunRef.current = runId;
-    setIsChecking(true);
     const pythonVersion = ruffToPythonVersion(targetVersion);
+    const checkerById = new Map(checkers.map((c) => [c.id, c]));
 
-    try {
-      const settled = await Promise.allSettled(
-        selectedCheckerIds.map((id) =>
-          fetch(`/api/checkers/${id}/typecheck`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files, python_version: pythonVersion }),
-          }).then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json() as Promise<CheckerResult>;
-          })
-        )
-      );
+    const requests = selectedCheckerIds.map((id) =>
+      fetch(`/api/checkers/${id}/typecheck`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files, python_version: pythonVersion }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json() as Promise<CheckerResult>;
+        })
+        .then((result) => {
+          const info = checkerById.get(id);
+          const diags = info ? toEditorDiagnostics(result, info) : [];
+          if (runId === runIdRef.current) {
+            setCheckerStates((s) => ({ ...s, [id]: { status: 'done', diagnostics: diags } }));
+          }
+          return diags;
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logError(`[${id}] request failed: ${message}`);
+          if (runId === runIdRef.current) {
+            setCheckerStates((s) => {
+              const prev = visibleDiagnostics(s[id]);
+              return { ...s, [id]: { status: 'error', message, prev: prev.length ? prev : null } };
+            });
+          }
+          throw err;
+        })
+    );
 
-      // A newer run (or edit) started while this one was in flight; drop stale results.
-      if (runId !== runIdRef.current) return;
+    const settled = await Promise.allSettled(requests);
+    // A newer run (or edit) started while this one was in flight; drop stale results.
+    if (runId !== runIdRef.current) return;
 
-      const newDiags: EditorDiagnostic[] = [];
-      const checkerById = new Map(checkers.map((c) => [c.id, c]));
-      let checkersWithIssues = 0;
-      settled.forEach((outcome, i) => {
-        const id = selectedCheckerIds[i];
-        if (outcome.status === 'rejected') {
-          logError(`[${id}] request failed: ${outcome.reason}`);
-          return;
-        }
-        const result = outcome.value;
-        const info = checkerById.get(id);
-        if (!info) {
-          logError(`[${id}] unknown checker id; dropping ${result.diagnostics.length} diagnostics`);
-          return;
-        }
-        if (result.diagnostics.some((d) => d.severity !== 'information')) checkersWithIssues++;
-        for (const d of result.diagnostics) {
-          newDiags.push({
-            file: d.file,
-            checkerLabel: info.label,
-            color: info.color,
-            line: d.line,
-            column: d.column,
-            endLine: d.end_line,
-            endColumn: d.end_column,
-            message: d.code ? `${d.message} (${d.code})` : d.message,
-            severity: d.severity,
-          });
-        }
-      });
-
-      setTypecheckerDiagnostics(newDiags);
-      setRunSummary(
-        checkersWithIssues > 0
-          ? `${checkersWithIssues} typechecker${checkersWithIssues === 1 ? '' : 's'} found issues`
-          : 'No issues found'
-      );
-    } finally {
-      // Only clear "checking" if a newer run hasn't taken over as pending;
-      // otherwise this stale completion would hide the newer run in flight.
-      if (pendingRunRef.current === runId) {
-        pendingRunRef.current = null;
-        setIsChecking(false);
-      }
+    const flat: EditorDiagnostic[] = [];
+    let checkersWithIssues = 0;
+    for (const outcome of settled) {
+      if (outcome.status !== 'fulfilled') continue;
+      flat.push(...outcome.value);
+      if (outcome.value.some((d) => d.severity !== 'information')) checkersWithIssues++;
     }
+    setTypecheckerDiagnostics(flat);
+    setRunSummary(
+      checkersWithIssues > 0
+        ? `${checkersWithIssues} typechecker${checkersWithIssues === 1 ? '' : 's'} found issues`
+        : 'No issues found'
+    );
   };
 
+  // Depend on stable primitives, not object/array identity, so the effect (which
+  // now sets state synchronously) fires on real changes rather than every render.
+  // checkersKey is included because `check` reads `checkers` for labels/colors.
+  const filesKey = JSON.stringify(files);
+  const idsKey = selectedCheckerIds.join(' ');
+  const checkersKey = checkers.map((c) => c.id).join(' ');
+
   // Auto-check once edits pause for AUTO_RUN_DELAY; each change restarts the timer.
+  // When a run starts, squiggles clear and the panel shows dimmed prev + spinner.
   useEffect(() => {
     const runId = ++runIdRef.current;
     if (!isReady) return;
-    // Nothing selected: clear results instead of leaving the last run on screen.
+    // Nothing selected: clear both slices instead of leaving the last run on screen.
     if (selectedCheckerIds.length === 0) {
+      setCheckerStates({});
       setTypecheckerDiagnostics([]);
       setRunSummary(null);
       return;
     }
-    if (!canRun) return;
+    // Ruff is not clean (syntax invalid), so the typecheckers cannot run. Clear
+    // both slices: the typechecker squiggles disappear (Ruff's own squiggles are
+    // a separate slice and stay) and the panel clears rather than showing stale
+    // counts. A later clean run repopulates them.
+    if (!canRun) {
+      setCheckerStates({});
+      setTypecheckerDiagnostics([]);
+      setRunSummary(null);
+      return;
+    }
+    setTypecheckerDiagnostics([]);
+    setCheckerStates((prev) => enterChecking(prev, selectedCheckerIds));
     const handle = setTimeout(() => check(runId), AUTO_RUN_DELAY);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, targetVersion, selectedCheckerIds, canRun, isReady]);
+  }, [filesKey, targetVersion, idsKey, checkersKey, canRun, isReady]);
+
+  const isChecking = Object.values(checkerStates).some((s) => s.status === 'checking');
 
   return {
-    field: { typecheckerDiagnostics },
+    field: { checkerStates, typecheckerDiagnostics },
     config: { isChecking, runSummary },
   };
 }
