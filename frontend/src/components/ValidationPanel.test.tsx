@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-
-afterEach(cleanup);
+import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import ValidationPanel from '@/components/ValidationPanel';
 import type { CheckerInfo, CheckerRunState, EditorDiagnostic } from '@/types';
 
